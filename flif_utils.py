@@ -52,7 +52,7 @@ def convert_flifs(src: Path, dst: Path, use_tqdm=False):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers(help='action', required=True)
+    subparsers = parser.add_subparsers(help='action')
 
     convert_parser = subparsers.add_parser('convert')
 
