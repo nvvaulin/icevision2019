@@ -66,7 +66,7 @@ classes = ["sign"]
 mean, std = (103.53/255, 116.28/255, 123.675/255), (57.375/255, 57.12/255, 58.395/255)
 scale = None
 
-batch_size = 6
+batch_size = 8
 lr = 1e-4
 momentum = 0.9
 weight_decay =0.0001

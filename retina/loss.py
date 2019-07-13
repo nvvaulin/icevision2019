@@ -8,7 +8,6 @@ import numpy as np
 from utils import t2np
 
 def one_hot(index, classes):
-
     size = index.size() + (classes,)
     view = index.size() + (1,)
     mask = torch.Tensor(*size).fill_(0)
@@ -31,7 +30,7 @@ class FocalLoss(nn.Module):
         self.num_classes = num_classes
         self.alpha = .25
         self.gamma = 2
-        self.e = torch.eye(num_classes+1, requires_grad=False).to('cuda')
+        self.e = torch.eye(num_classes, requires_grad=False).to('cuda')
 
 
     def _ohe(self, y):
@@ -46,16 +45,20 @@ class FocalLoss(nn.Module):
         # q=input()
         return self.e[y]
 
-
-
-    def focal_loss(self, x, y):
-        y = y.float()
+    def focal_loss(self, x, ohe_y):
         p = F.sigmoid(x)
 
-        fg = self.alpha * y * ((1 - p) ** self.gamma) * p.log()
-        bg = (1 - self.alpha) * (1 - y) * (p ** self.gamma) * (1 - p).log()
+        y = ohe_y.float()[:, 1:]
 
-        loss = - (fg.sum() + bg.sum())
+        p_fg = p[:, 1:]
+
+        # print(y.shape)
+        # print(p_fg.shape)
+
+        fg = self.alpha * y * ((1 - p_fg) ** self.gamma) * p_fg.log()
+        bg = (1 - self.alpha) * (1 - y) * (p_fg ** self.gamma) * (1 - p_fg).log()
+
+        loss = -(fg.sum() + bg.sum())
         return loss
 
 
@@ -72,19 +75,19 @@ class FocalLoss(nn.Module):
 
         fbg_idx = cls_targets != -1
 
-        print('cls_targets shape', cls_targets.shape)
+        # print('cls_targets shape', cls_targets.shape)
         fbg_mask = fbg_idx.expand_as(cls_targets)
-        print('fgb_mask shape', fbg_mask.shape)
+        # print('fgb_mask shape', fbg_mask.shape)
         fgb_cls_preds = cls_preds[fbg_mask].squeeze()
         fgb_cls_targets = cls_targets[fbg_mask]
 
-        print('fgb_cls_preds', fgb_cls_preds.shape)
-        print('fgb_cls_targets', fgb_cls_targets.shape)
+        # print('fgb_cls_preds', fgb_cls_preds.shape)
+        # print('fgb_cls_targets', fgb_cls_targets.shape)
 
         ohe_targets = self._ohe(fgb_cls_targets)
         # print(ohe_targets[:10])
-        print(ohe_targets.shape)
-        print(fgb_cls_preds.shape)
+        # print(ohe_targets.shape)
+        # print(fgb_cls_preds.shape)
 
         cls_loss = self.focal_loss(fgb_cls_preds, ohe_targets)
 

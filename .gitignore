@@ -1,3 +1,7 @@
+retina/ckpts
+retina/val.tasks
+retina/train.tasks
+log.txt
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
