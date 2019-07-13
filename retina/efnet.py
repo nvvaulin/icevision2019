@@ -11,7 +11,6 @@ from efficientnet_pytorch import EfficientNet
 from efficientnet_pytorch.utils import relu_fn
 import sys
 sys.path.append('dropblock')
-from dropblock import DropBlock2D, LinearScheduler
 
 
 
@@ -39,7 +38,7 @@ class MBConvBlock(nn.Module):
     def __init__(self, block_args, global_params, norm_func):
         super().__init__()
 
-        self.dropblock = LinearScheduler(DropBlock2D(block_size=3, drop_prob=0), 0, 0.1, 1000)
+        #self.dropblock = LinearScheduler(DropBlock2D(block_size=3, drop_prob=0), 0, 0.1, 1000)
 
         self._block_args = block_args
         self._bn_mom = 1 - global_params.batch_norm_momentum
