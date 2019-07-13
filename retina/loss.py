@@ -51,7 +51,6 @@ class FocalLoss(nn.Module):
         y = ohe_y.float()[:, 1:]
 
         p_fg = p[:, 1:]
-
         # print(y.shape)
         # print(p_fg.shape)
 

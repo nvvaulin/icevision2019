@@ -95,8 +95,8 @@ class DataEncoder:
         else:
             input_size = torch.Tensor(input_size)
 
-        anchor_boxes = self.get_anchor_boxes(input_size).to('cuda')
-        std=self.std.to('cuda')
+        anchor_boxes = self.get_anchor_boxes(input_size).to(device)
+        std=self.std.to(device)
 #         print(loc_preds.shape)
         loc_preds=loc_preds*std
         loc_xy = loc_preds[..., :2]
@@ -115,7 +115,10 @@ class DataEncoder:
 #         print(shifts[:, None].shape)
 #         print(boxes[1, 1244, :])
 #         print(shifts[:, None][1, 0, :])
-        boxes = boxes + shifts[:, None]
+        print(boxes.shape)
+        print(shifts.shape)
+        print(scales.shape)
+        boxes = (boxes + shifts[:, None]) * scales[:, None]
 #         print(boxes[1, 1244, :])
 #         print(boxes)
         # cls_preds=F.softmax(cls_preds,-1)
@@ -123,7 +126,7 @@ class DataEncoder:
         # print((cls_preds>0.05).sum())
         # print('cls_preds', cls_preds.shape)
         # score, labels = cls_preds.max(-1)
-        score = cls_preds.squeeze()
+#         score = cls_preds.squeeze()
         score, labels = cls_preds.max(-1)
         # print('score', score.shape, 'labels', labels.shape)
         labels = labels + 1
