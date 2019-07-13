@@ -9,8 +9,6 @@ from efnet import EfficientNet
 from itertools import chain
 
 import sys
-sys.path.append('dropblock')
-from dropblock import DropBlock2D, LinearScheduler
 torch.backends.cudnn.enabled = True
 
 
