@@ -8,9 +8,11 @@ def iterate_from_log(root,log_path):
     yield bbox_iterator yields 
     '''
     df = pd.read_csv(log_path)
-    cols = ['xtl','ytl','xbr','ybr','score','track','class']
+    cols = ['xtl','ytl','xbr','ybr','score','track','track_score','class','class_score']
     cols = [i for i in cols if i in df.columns]
-    for imname,bbox in df.groupby('imname'):
+    df['rinx'] = np.array([-int(i.split('.')[0]) for i in df.imname.values])
+    for _,bbox in df.groupby('rinx'):
+        imname = bbox['imname'].values[0]
         img = Image.open(os.path.join(root,imname))
         yield imname,img,bbox[cols].values.astype(np.float32)
         
@@ -20,7 +22,7 @@ def iterate_log(iterator,log_path,t='w'):
     yield bbox_iterator yields 
     '''
     log = open(log_path,t)
-    cols = ['xtl','ytl','xbr','ybr','score','track','class']
+    cols = ['xtl','ytl','xbr','ybr','score','track','track_score','class','class_score']
     for i,(imname,img,bbox) in enumerate(iterator):
         if i == 0:
             log.write(','.join(['imname']+[cols[j] for j in range(bbox.shape[1])]))
@@ -43,7 +45,7 @@ def iterate_detector(img_iterator,**kwargs):
     
 def iterate_tracker(detector_iterator,**kwargs):
     '''
-    yield imname,img,bboxes(x1,y1,x2,y2,score,track_id)
+    yield imname,img,bboxes(x1,y1,x2,y2,score,track_id,track_score)
     '''    
     for imname,img,bboxes in track_iterator:
         yield imname,img,np.concatenate((bboxes,np.ones((len(bboxes),1))),1)
@@ -53,7 +55,7 @@ def iterate_tracker(detector_iterator,**kwargs):
     
 def iterate_classify(track_iterator,**kwargs):
     '''
-    yield imname,img,bboxes(x1,y1,x2,y2,score,track_id,class)
+    yield imname,img,bboxes(x1,y1,x2,y2,score,track_id,track_score,class,class_score)
     '''
     for imname,img,bboxes in track_iterator:
         yield imname,img,np.concatenate((bboxes,np.ones((len(bboxes),1))),1)
