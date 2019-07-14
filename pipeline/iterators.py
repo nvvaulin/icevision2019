@@ -1,4 +1,5 @@
 import argparse
+import multiprocessing
 import os
 import pickle
 import sys
@@ -190,56 +191,72 @@ def iterate_from_log(root, log_path):
         yield imname, img, bbox[cols].values.astype(np.float32)
 
 
-def iterate_log(iterator, log_path, t='w'):
+def iterate_log(iterator, log_path, mode='w'):
     '''
     yield bbox_iterator yields
     '''
-    log = open(log_path, t)
     cols = ['xtl', 'ytl', 'xbr', 'ybr', 'score', 'class', 'class_score', 'track', 'track_score']
-    for i, (imname, img, bbox) in enumerate(iterator):
-        if i == 0:
-            log.write(','.join(['imname'] + [cols[j] for j in range(bbox.shape[1])]))
-        log.write('\n' + '\n'.join([','.join([imname] + ['%.3f' % j for j in box]) for box in bbox]))
-        log.flush()
-        yield imname, img, bbox
+    with open(log_path, mode) as log:
+        for i, (imname, img, bbox) in enumerate(iterator):
+            if i == 0:
+                log.write(','.join(['imname'] + [cols[j] for j in range(bbox.shape[1])]))
+            log.write('\n' + '\n'.join([','.join([imname] + ['%.3f' % j for j in box]) for box in bbox]))
+            log.flush()
+            yield imname, img, bbox
 
 
-def iterate_threshold(it,dthr=-1,cthr=-1,tth=-1):
-    for p,im,b in it:
-        mask = b[:,4]>dthr
-        if b.shape[1]>6:            
-            mask = (b[:,6]>dthr)&mask
-        if b.shape[1]>8:            
-            mask = (b[:,8]>cthr)&mask
-        yield p,im,b[mask]
-        
+def iterate_threshold(it, dthr=-1, cthr=-1, tth=-1):
+    for p, im, b in it:
+        mask = b[:, 4] > dthr
+        if b.shape[1] > 6:
+            mask = (b[:, 6] > dthr) & mask
+        if b.shape[1] > 8:
+            mask = (b[:, 8] > cthr) & mask
+        yield p, im, b[mask]
+
+
+# def iterate_imgs(root, imlist, **kwargs):
+#     '''
+#     yield imname,img(PIL)
+#     '''
+#     for imname in imlist:
+#         img = imageio.imread(os.path.join(root, imname))
+#         img = cv2.cvtColor(img, cv2.COLOR_BAYER_BG2BGR)
+#         img = Image.fromarray(img)
+#         yield imname, img
+
+
+def read_img(tup):
+    root, imname = tup
+    img = imageio.imread(os.path.join(root, imname))
+    img = cv2.cvtColor(img, cv2.COLOR_BAYER_BG2BGR)
+    img = Image.fromarray(img)
+    return imname, img
+
+
 def iterate_imgs(root, imlist, **kwargs):
-    '''
-    yield imname,img(PIL)
-    '''
-    for imname in imlist:
-        img = imageio.imread(os.path.join(root,imname))
-        img = cv2.cvtColor(img, cv2.COLOR_BAYER_BG2BGR)
-        img = Image.fromarray(img)
+    pool = multiprocessing.pool.Pool(8)
+    im_paths = [(root, imname) for imname in imlist]
+    for imname, img in pool.imap(read_img, im_paths):
         yield imname, img
 
 
-def iterate_detector(img_iterator,stride=5, **kwargs):
+def iterate_detector(img_iterator, stride=5, **kwargs):
     '''
     yield imname,img,bboxes(x1,y1,x2,y2,score)
     '''
     detector = RetinaDetector(**kwargs)
-    for i,(imname, img) in enumerate(img_iterator):
-        if (i%stride) == 0:
+    for i, (imname, img) in enumerate(img_iterator):
+        if (i % stride) == 0:
             boxes, labels, scores = detector.detect(img)
             if scores is None:
-                yield imname,img,np.zeros((0,5),dtype=np.float32)
+                yield imname, img, np.zeros((0, 5), dtype=np.float32)
             else:
                 assert boxes.shape[0] == scores.shape[0]
                 assert boxes.shape[1] == 4
                 yield imname, img, np.hstack([boxes, scores.reshape(-1, 1)])
         else:
-            yield imname,img,np.zeros((0,5),dtype=np.float32)
+            yield imname, img, np.zeros((0, 5), dtype=np.float32)
 
 
 def draw_results(img, bboxes):
@@ -289,15 +306,15 @@ def iterate_video(box_iterator, out_path, vsize=(1024, 1024)):
             yield imname, im, bboxes
 
 
-def main(frames_path, log_path, video_path,num_shards,shard):
+def main(frames_path, log_path, video_path, num_shards, shard):
     mtracker = SiamMultiTracker()
-    imlist = sorted([i for i in os.listdir(frames_path) if i.split('.')[-1] in ['pnm','png','jpg']], reverse=True)
-    shard_size = (len(imlist)+num_shards-1)//num_shards
-    imlist = imlist[shard*shard_size:(shard+1)*shard_size]
+    imlist = sorted([i for i in os.listdir(frames_path) if i.split('.')[-1] in ['pnm', 'png', 'jpg']], reverse=True)
+    shard_size = (len(imlist) + num_shards - 1) // num_shards
+    imlist = imlist[shard * shard_size:(shard + 1) * shard_size]
     it = iterate_imgs(frames_path, imlist)
     it = iterate_async(it)
-    it = iterate_profiler(iterate_detector(it,stride=5),'detector')
-    it = iterate_profiler(iterate_threshold(it,0.5),'det_after_threshold')
+    it = iterate_profiler(iterate_detector(it, stride=5), 'detector')
+    it = iterate_profiler(iterate_threshold(it, 0.5), 'det_after_threshold')
     it = iterate_profiler(it, 'load img', 100)
     it = iterate_classifier_by_img(it)
     it = iterate_profiler(it, 'classify', 100)
@@ -318,8 +335,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--frames-path', help='Path to directory with frames', required=True)
     parser.add_argument('--log-path', help='Path to CSV with detector output')
-    parser.add_argument('--num_shards',type=int, help='number of proccesses which you will run',default=1)
-    parser.add_argument('--shard',type=int, help='number of proccess which you will run',default=0)
+    parser.add_argument('--num_shards', type=int, help='number of proccesses which you will run', default=1)
+    parser.add_argument('--shard', type=int, help='number of proccess which you will run', default=0)
     parser.add_argument('--video-path', help='Path where output video should be saved', required=True)
     args = parser.parse_args()
-    main(args.frames_path, args.log_path, args.video_path,args.num_shards,args.shard)
+    main(args.frames_path, args.log_path, args.video_path, args.num_shards, args.shard)
