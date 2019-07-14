@@ -1,6 +1,7 @@
 import argparse
 import os
 import pickle
+import sys
 import time
 from contextlib import contextmanager
 from multiprocessing.dummy import Pool
@@ -13,6 +14,10 @@ from PIL import Image
 
 from SiamMask import SiamMultiTracker
 from classification import SignClassifier
+
+sys.path.append('../retina')
+
+from black_box import RetinaDetector
 
 
 ########################geretal iter tools#################################
@@ -70,7 +75,7 @@ def iterate_img(box_iterator, box_len=-1):
             cur_im = im
         bboxes.append(box)
 
-    if cur_im != None:
+    if cur_im is not None:
         bboxes = np.array(bboxes, dtype=np.float32)
         yield cur_imname, cur_im, bboxes
 
@@ -208,6 +213,12 @@ def iterate_detector(img_iterator, **kwargs):
     '''
     yield imname,img,bboxes(x1,y1,x2,y2,score)
     '''
+    detector = RetinaDetector(**kwargs)
+    for imname, img in img_iterator:
+        boxes, labels, scores = detector.detect(img)
+        assert boxes.shape[0] == scores.shape[0]
+        assert boxes.shape[1] == 4
+        yield imname, img, np.hstack(boxes, scores.reshape(-1, 1))
 
 
 def draw_results(img, bboxes):
@@ -259,8 +270,9 @@ def iterate_video(box_iterator, out_path, vsize=(1024, 1024)):
 
 def main(frames_path, log_path, video_path):
     mtracker = SiamMultiTracker()
-    it = iterate_from_log(frames_path, log_path)
-    it = simulate_detector(it)
+    imlist = sorted(os.listdir(frames_path))
+    it = iterate_imgs(frames_path, imlist)
+    it = iterate_detector(it)
     it = iterate_async(it)
     it = iterate_profiler(it, 'load img', 100)
     it = iterate_classifier_by_img(it)
