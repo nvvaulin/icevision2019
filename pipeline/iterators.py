@@ -209,7 +209,10 @@ def iterate_imgs(root, imlist, **kwargs):
     yield imname,img(PIL)
     '''
     for imname in imlist:
-        yield imname, Image.open(os.path.join(root, imname))
+        img = imageio.imread(os.path.join(root,imname))
+        img = cv2.cvtColor(img, cv2.COLOR_BAYER_BG2BGR)
+        img = Image.fromarray(img)
+        yield imname, img
 
 
 def iterate_detector(img_iterator, **kwargs):
@@ -273,7 +276,7 @@ def iterate_video(box_iterator, out_path, vsize=(1024, 1024)):
 
 def main(frames_path, log_path, video_path):
     mtracker = SiamMultiTracker()
-    imlist = sorted(os.listdir(frames_path), reverse=True)
+    imlist = sorted([i for i in os.listdir(frames_path) if i.split('.')[-1] in ['pnm','png','jpg']], reverse=True)
     it = iterate_imgs(frames_path, imlist)
     it = iterate_async(it)
     it = iterate_detector(it)
