@@ -36,7 +36,7 @@ def conv3x3(in_channels, out_channels, **kwargs):
 def conv3x3_bn(in_channels, out_channels, **kwargs):
     layer = nn.Conv2d(in_channels, out_channels, kernel_size=3, **kwargs)
     layer = init_conv_weights(layer)
-    bn = nn.GroupNorm(16, out_channels)
+    bn = nn.GroupNorm(8, out_channels)
     return layer, bn
 
 
@@ -76,7 +76,7 @@ class FeaturePyramid(nn.Module):
         self.upsample_transform_1 = conv3x3(256, 256, padding=1)
         self.upsample_transform_2 = conv3x3(256, 256, padding=1)
 
-        self.dropout = nn.Dropout(p=0.5)
+        self.dropout = nn.Dropout(p=0.0)
         # self.dropblock_3 = LinearScheduler(DropBlock2D(block_size=4, drop_prob=0), 0, 0.1, 2000)
         # self.dropblock_4 = LinearScheduler(DropBlock2D(block_size=2, drop_prob=0), 0, 0.1, 1000)
         # self.dropblock_5 = LinearScheduler(DropBlock2D(block_size=2, drop_prob=0), 0, 0.1, 500)
@@ -120,7 +120,7 @@ class SubNet(nn.Module):
         drop_prob = 0.1 if cls else 0
         drop_prob = 0
         # self.dropout = LinearScheduler(DropBlock2D(block_size=3, drop_prob=0), 0, drop_prob, 1000)
-        self.dropout = nn.Dropout(p=0.5)
+        self.dropout = nn.Dropout(p=0.0)
         mod_list = list(chain(*(conv3x3_bn(256, 256, padding=1) for _ in range(depth))))
         # print(mod_list)
         self.base = nn.ModuleList(mod_list)

@@ -44,8 +44,8 @@ class DataEncoder:
             fm_size = fm_sizes[i]
             grid_size = (input_size/fm_size).floor()
             fm_w, fm_h = int(fm_size[0]), int(fm_size[1])
-            xy = meshgrid(fm_w, fm_h)# [fm_h * fm_w, 2]
-            xy = xy.type(torch.FloatTensor) + 0.5
+            xy = meshgrid(fm_w, fm_h)+0.5# [fm_h * fm_w, 2]
+            xy = xy.type(torch.FloatTensor)
             xy = (xy * grid_size).view(fm_w, fm_h, 1, 2).expand(fm_w, fm_h, 9, 2)
             wh = self.anchor_edges[i].view(1, 1, 9, 2).expand(fm_w, fm_h, 9, 2)
             box = torch.cat([xy, wh], 3)  # [x, y, w, h]
@@ -127,16 +127,19 @@ class DataEncoder:
         # print((cls_preds>0.05).sum())
         # print('cls_preds', cls_preds.shape)
         # score, labels = cls_preds.max(-1)
-#         score = cls_preds.squeeze()
-        score, labels = cls_preds.max(-1)
+        score = cls_preds.squeeze()
+        print(score.shape)
+        labels = torch.ones(score.shape)
+#         score, labels = cls_preds.max(-1)
         # print('score', score.shape, 'labels', labels.shape)
-        labels = labels + 1
+#         labels = labels + 1
         # ids =  (labels > 0) & (score>CLS_THRESH)
         ids =  (score>CLS_THRESH)
         ids = ids.nonzero()
         if ids.shape[0]==0:
             return None, None, None
-
+#         print(boxes.shape)
+#         print(ids.shape)
 #         ids=ids.to('cpu').detach()
 #         print
 #         print(ids.shape)
