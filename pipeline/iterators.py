@@ -218,7 +218,7 @@ def iterate_detector(img_iterator, **kwargs):
         boxes, labels, scores = detector.detect(img)
         assert boxes.shape[0] == scores.shape[0]
         assert boxes.shape[1] == 4
-        yield imname, img, np.hstack(boxes, scores.reshape(-1, 1))
+        yield imname, img, np.hstack([boxes, scores.reshape(-1, 1)])
 
 
 def draw_results(img, bboxes):
