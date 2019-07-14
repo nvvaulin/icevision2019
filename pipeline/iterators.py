@@ -239,6 +239,7 @@ def iterate_video(box_iterator, out_path, vsize=(1024, 1024)):
         im = draw_results(im, bboxes)
         out.write(cv2.resize(im, vsize))
         yield imname, im, bboxes
+    out.release()
 
 
 def main(frames_path, log_path, video_path):
