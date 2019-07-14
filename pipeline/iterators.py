@@ -245,7 +245,7 @@ def read_img(tup):
 def iterate_imgs(root, imlist, **kwargs):
     pool = multiprocessing.pool.ThreadPool(8)
     im_paths = [(root, imname) for imname in imlist]
-    for imname, img in pool.imap(read_img, im_paths):
+    for imname, img in pool.imap(read_img, im_paths, chunksize=8):
         yield imname, img
 
 
