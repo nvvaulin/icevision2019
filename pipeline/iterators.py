@@ -204,6 +204,15 @@ def iterate_log(iterator, log_path, t='w'):
         yield imname, img, bbox
 
 
+def iterate_threshold(it,dthr=-1,cthr=-1,tth=-1):
+    for p,im,b in it:
+        mask = b[:,4]>dthr
+        if b.shape[1]>6:            
+            mask = (b[:,6]>dthr)&mask
+        if b.shape[1]>8:            
+            mask = (b[:,8]>cthr)&mask
+        yield p,im,b[mask]
+        
 def iterate_imgs(root, imlist, **kwargs):
     '''
     yield imname,img(PIL)
@@ -215,16 +224,22 @@ def iterate_imgs(root, imlist, **kwargs):
         yield imname, img
 
 
-def iterate_detector(img_iterator, **kwargs):
+def iterate_detector(img_iterator,stride=5, **kwargs):
     '''
     yield imname,img,bboxes(x1,y1,x2,y2,score)
     '''
     detector = RetinaDetector(**kwargs)
-    for imname, img in img_iterator:
-        boxes, labels, scores = detector.detect(img)
-        assert boxes.shape[0] == scores.shape[0]
-        assert boxes.shape[1] == 4
-        yield imname, img, np.hstack([boxes, scores.reshape(-1, 1)])
+    for i,(imname, img) in enumerate(img_iterator):
+        if (i%stride) == 0:
+            boxes, labels, scores = detector.detect(img)
+            if scores is None:
+                yield imname,img,np.zeros((0,5),dtype=np.float32)
+            else:
+                assert boxes.shape[0] == scores.shape[0]
+                assert boxes.shape[1] == 4
+                yield imname, img, np.hstack([boxes, scores.reshape(-1, 1)])
+        else:
+            yield imname,img,np.zeros((0,5),dtype=np.float32)
 
 
 def draw_results(img, bboxes):
@@ -274,12 +289,15 @@ def iterate_video(box_iterator, out_path, vsize=(1024, 1024)):
             yield imname, im, bboxes
 
 
-def main(frames_path, log_path, video_path):
+def main(frames_path, log_path, video_path,num_shards,shard):
     mtracker = SiamMultiTracker()
     imlist = sorted([i for i in os.listdir(frames_path) if i.split('.')[-1] in ['pnm','png','jpg']], reverse=True)
+    shard_size = (len(imlist)+num_shards-1)//num_shards
+    imlist = imlist[shard*shard_size:(shard+1)*shard_size]
     it = iterate_imgs(frames_path, imlist)
     it = iterate_async(it)
-    it = iterate_detector(it)
+    it = iterate_profiler(iterate_detector(it,stride=5),'detector')
+    it = iterate_profiler(iterate_threshold(it,0.5),'det_after_threshold')
     it = iterate_profiler(it, 'load img', 100)
     it = iterate_classifier_by_img(it)
     it = iterate_profiler(it, 'classify', 100)
@@ -300,6 +318,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--frames-path', help='Path to directory with frames', required=True)
     parser.add_argument('--log-path', help='Path to CSV with detector output')
+    parser.add_argument('--num_shards',type=int, help='number of proccesses which you will run',default=1)
+    parser.add_argument('--shard',type=int, help='number of proccess which you will run',default=0)
     parser.add_argument('--video-path', help='Path where output video should be saved', required=True)
     args = parser.parse_args()
-    main(args.frames_path, args.log_path, args.video_path)
+    main(args.frames_path, args.log_path, args.video_path,args.num_shards,args.shard)
