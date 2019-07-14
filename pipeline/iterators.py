@@ -6,7 +6,7 @@ import time
 from contextlib import contextmanager
 from multiprocessing.dummy import Pool
 from pathlib import Path
-
+import imageio
 import cv2
 import numpy as np
 import pandas as pd
@@ -17,7 +17,7 @@ from classification import SignClassifier
 
 sys.path.append('../retina')
 
-from black_box import RetinaDetector
+# from black_box import RetinaDetector
 
 
 ########################geretal iter tools#################################
@@ -182,8 +182,10 @@ def iterate_from_log(root, log_path):
 
     for _, bbox in df.groupby('rinx', sort=True):
         imname = bbox['imname'].values[0]
-        frame_idx = int(imname.split('.')[0])
-        img = Image.open(all_images[frame_idx])
+        imname = all_images[int(imname.split('.')[0])]
+        img = imageio.imread(imname)
+        img = cv2.cvtColor(img, cv2.COLOR_BAYER_BG2BGR)
+        img = Image.fromarray(img)
         yield imname, img, bbox[cols].values.astype(np.float32)
 
 
@@ -209,16 +211,16 @@ def iterate_imgs(root, imlist, **kwargs):
         yield imname, Image.open(os.path.join(root, imname))
 
 
-def iterate_detector(img_iterator, **kwargs):
-    '''
-    yield imname,img,bboxes(x1,y1,x2,y2,score)
-    '''
-    detector = RetinaDetector(**kwargs)
-    for imname, img in img_iterator:
-        boxes, labels, scores = detector.detect(img)
-        assert boxes.shape[0] == scores.shape[0]
-        assert boxes.shape[1] == 4
-        yield imname, img, np.hstack(boxes, scores.reshape(-1, 1))
+# def iterate_detector(img_iterator, **kwargs):
+#     '''
+#     yield imname,img,bboxes(x1,y1,x2,y2,score)
+#     '''
+#     detector = RetinaDetector(**kwargs)
+#     for imname, img in img_iterator:
+#         boxes, labels, scores = detector.detect(img)
+#         assert boxes.shape[0] == scores.shape[0]
+#         assert boxes.shape[1] == 4
+#         yield imname, img, np.hstack(boxes, scores.reshape(-1, 1))
 
 
 def draw_results(img, bboxes):
