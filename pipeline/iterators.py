@@ -6,8 +6,9 @@ import time
 from contextlib import contextmanager
 from multiprocessing.dummy import Pool
 from pathlib import Path
-import imageio
+
 import cv2
+import imageio
 import numpy as np
 import pandas as pd
 from PIL import Image
@@ -210,6 +211,7 @@ def iterate_imgs(root, imlist, **kwargs):
     for imname in imlist:
         yield imname, Image.open(os.path.join(root, imname))
 
+
 def iterate_detector(img_iterator, **kwargs):
     '''
     yield imname,img,bboxes(x1,y1,x2,y2,score)
@@ -271,10 +273,10 @@ def iterate_video(box_iterator, out_path, vsize=(1024, 1024)):
 
 def main(frames_path, log_path, video_path):
     mtracker = SiamMultiTracker()
-    imlist = sorted(os.listdir(frames_path))
+    imlist = sorted(os.listdir(frames_path), reverse=True)
     it = iterate_imgs(frames_path, imlist)
-    it = iterate_detector(it)
     it = iterate_async(it)
+    it = iterate_detector(it)
     it = iterate_profiler(it, 'load img', 100)
     it = iterate_classifier_by_img(it)
     it = iterate_profiler(it, 'classify', 100)
