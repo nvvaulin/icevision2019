@@ -85,7 +85,7 @@ criterion = FocalLoss(99)
 # optimizer = optim.Adam(net.parameters(), lr=cfg.lr,weight_decay=cfg.weight_decay)
 optimizer = optim.SGD(net.parameters(), lr=cfg.lr, momentum=cfg.momentum, nesterov=True)
 cosine_lr = CosineAnnealingWarmRestarts(optimizer, T_0=len(trainloader), T_mult=2)
-lr_s = GradualWarmupScheduler(optimizer, multiplier=40, total_epoch=100, after_scheduler=cosine_lr)
+lr_s = GradualWarmupScheduler(optimizer, multiplier=40, total_epoch=2000, after_scheduler=cosine_lr)
 
 # optimizer = optim.SGD(net.parameters(), lr=cfg.lr, momentum=cfg.momentum, nesterov=True)
 # lr_s = CosineAnnealingWarmRestarts(optimizer, T_0=5*len(trainloader), T_mult=1)

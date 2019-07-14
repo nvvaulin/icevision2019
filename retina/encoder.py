@@ -44,8 +44,8 @@ class DataEncoder:
             fm_size = fm_sizes[i]
             grid_size = (input_size/fm_size).floor()
             fm_w, fm_h = int(fm_size[0]), int(fm_size[1])
-            xy = meshgrid(fm_w, fm_h) + 0.5  # [fm_h * fm_w, 2]
-            xy = xy.type(torch.FloatTensor)
+            xy = meshgrid(fm_w, fm_h)# [fm_h * fm_w, 2]
+            xy = xy.type(torch.FloatTensor) + 0.5            
             xy = (xy * grid_size).view(fm_w, fm_h, 1, 2).expand(fm_w, fm_h, 9, 2)
             wh = self.anchor_edges[i].view(1, 1, 9, 2).expand(fm_w, fm_h,9, 2)
             box = torch.cat([xy, wh], 3)  # [x, y, w, h]
@@ -84,8 +84,8 @@ class DataEncoder:
         return score
 
     def decode(self, loc_preds, cls_preds, input_size, device='cuda', shifts=0, scales=1):
-        CLS_THRESH = 0.4
-        NMS_THRESH = 0.4
+        CLS_THRESH = 0.3
+        NMS_THRESH = 0.3
 
         loc_preds = loc_preds.float()
         cls_preds = cls_preds.float()
@@ -95,8 +95,8 @@ class DataEncoder:
         else:
             input_size = torch.Tensor(input_size)
 
-        anchor_boxes = self.get_anchor_boxes(input_size).to('cuda')
-        std=self.std.to('cuda')
+        anchor_boxes = self.get_anchor_boxes(input_size).to(device)
+        std=self.std.to(device)
 #         print(loc_preds.shape)
         loc_preds=loc_preds*std
         loc_xy = loc_preds[..., :2]
@@ -115,7 +115,11 @@ class DataEncoder:
 #         print(shifts[:, None].shape)
 #         print(boxes[1, 1244, :])
 #         print(shifts[:, None][1, 0, :])
-        boxes = boxes + shifts[:, None]
+#         print(boxes.shape)
+#         print(shifts.shape)
+#         print(scales.shape)
+#         print(scales, shifts)
+        boxes = (boxes / scales[:, None, None] + shifts[:, None])
 #         print(boxes[1, 1244, :])
 #         print(boxes)
         # cls_preds=F.softmax(cls_preds,-1)
@@ -123,7 +127,7 @@ class DataEncoder:
         # print((cls_preds>0.05).sum())
         # print('cls_preds', cls_preds.shape)
         # score, labels = cls_preds.max(-1)
-        score = cls_preds.squeeze()
+#         score = cls_preds.squeeze()
         score, labels = cls_preds.max(-1)
         # print('score', score.shape, 'labels', labels.shape)
         labels = labels + 1
@@ -145,7 +149,7 @@ class DataEncoder:
         b = boxes.reshape(-1, 4)[ids]
         l = labels.reshape(-1, 1)[ids]
         s = score.reshape(-1, 1)[ids]
-        return map(lambda x: x.to('cpu').detach(), (b, l, s))
+        return map(lambda x: x.to('cpu').detach().numpy(), (b, l, s))
 #         print(k[0])
 #         print(k.shape)
 #         print(ids)
