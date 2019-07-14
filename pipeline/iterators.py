@@ -8,6 +8,7 @@ import time
 from contextlib import contextmanager
 from multiprocessing.dummy import Pool
 from pathlib import Path
+import csv
 
 import cv2
 import imageio
@@ -277,7 +278,8 @@ def draw_results(img, bboxes):
     boxes: bbox,dscore,class,cscore,track,tscore
     '''
     img = np.array(img)[:, :, ::-1].copy()
-    id2cl = pickle.load(open('classification/id2class.pkl', 'rb'))
+    with open('classification/id2class.pkl', 'rb') as fp:
+        id2cl = pickle.load(fp)
     for box in bboxes:
         x1, y1, x2, y2 = tuple(box[:4].astype(np.int32))
         color = [0, 0, 255]
@@ -319,7 +321,41 @@ def iterate_video(box_iterator, out_path, vsize=(1024, 1024)):
             yield imname, im, bboxes
 
 
-def main(frames_path, log_path, video_path, num_shards, shard):
+def iterate_submission(it, seq_name, submission_path):
+    with open('classification/id2class.pkl', 'rb') as fp:
+        id2cls = pickle.load(fp)
+    with open(submission_path, 'w') as fp:
+        writer = csv.writer(fp, delimiter='\t')
+        writer.writerow(['frame', 'xtl', 'ytl', 'xbr', 'ybr', 'class', 'temporary', 'data'])
+        for imname, img, bboxes in it:
+            for box in bboxes:
+                xtl, ytl, xbr, ybr = box[:4]
+                det_score = box[4]
+                cls, cls_score, trk, trk_score = [None] * 4
+
+                if len(box) >= 7:
+                    cls = id2cls[int(box[5])]
+                    if cls == 'other':
+                        continue
+                    cls_score = box[6]
+                if len(box) >= 9:
+                    trk = box[7]
+                    trk_score = box[8]
+                writer.writerow([
+                    f'{seq_name}/{imname.stem}',
+                    xtl,
+                    ytl,
+                    xbr,
+                    ybr,
+                    cls,
+                    'false',
+                    '',
+                ])
+                fp.flush()
+            yield imname, img, bboxes
+
+
+def main(frames_path, log_path, video_path, seq_name, submission_path, num_shards, shard, debug=False):
     mtracker = SiamMultiTracker()
     imlist = sorted([i for i in os.listdir(frames_path) if i.split('.')[-1] in ['pnm', 'png', 'jpg']], reverse=True)
     shard_size = (len(imlist) + num_shards - 1) // num_shards
@@ -336,9 +372,11 @@ def main(frames_path, log_path, video_path, num_shards, shard):
     it = iterate_classifier(it)
     it = iterate_profiler(it, 'classify_t', 100)
     it = iterate_remove_tracks(it, mtracker)
-    it = iterate_log(it, 'log.csv')
-    it = iterate_async(it)
-    it = iterate_video(it, video_path)
+    if debug:
+        it = iterate_log(it, 'log.csv')
+        it = iterate_async(it)
+        it = iterate_video(it, video_path)
+    it = iterate_submission(it, seq_name, submission_path)
     it = iterate_profiler(it, 'pipeline', 100)
     for i, (p, im, bboxes) in enumerate(it):
         pass
@@ -348,8 +386,20 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--frames-path', help='Path to directory with frames', required=True)
     parser.add_argument('--log-path', help='Path to CSV with detector output')
-    parser.add_argument('--num_shards', type=int, help='number of proccesses which you will run', default=1)
-    parser.add_argument('--shard', type=int, help='number of proccess which you will run', default=0)
+    parser.add_argument('--num_shards', type=int, help='number of processes which you will run', default=1)
+    parser.add_argument('--shard', type=int, help='number of process which you will run', default=0)
     parser.add_argument('--video-path', help='Path where output video should be saved', required=True)
+    parser.add_argument('--seq-name', help='Name of the sequence where videos come from', required=True)
+    parser.add_argument('--submission-path', help='Where to put the TSV with submission', required=True)
+    parser.add_argument('--debug', help='Whether to produce debugging output', action='store_true')
     args = parser.parse_args()
-    main(args.frames_path, args.log_path, args.video_path, args.num_shards, args.shard)
+    main(
+        frames_path=args.frames_path,
+        log_path=args.log_path,
+        video_path=args.video_path,
+        seq_name=args.seq_name,
+        submission_path=args.submission_path,
+        num_shards=args.num_shards,
+        shard=args.shard,
+        debug=args.debug,
+    )
