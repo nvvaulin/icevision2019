@@ -169,7 +169,7 @@ class EfficientNet(nn.Module):
         in_channels = 3  # rgb
         out_channels = round_filters(32, self._global_params)  # number of output channels
         self._conv_stem = Conv2d(in_channels, out_channels, kernel_size=3, stride=2, bias=False)
-        #self._norm_func = lambda out: nn.GroupNorm(8, out)
+#         self._norm_func = lambda out: nn.GroupNorm(8, out)
         self._norm_func = lambda out: nn.BatchNorm2d(out)
         # if cfg.MODEL.EFNET.BN == 'GN':
         #     self._norm_func = group_norm
