@@ -3,6 +3,7 @@ This file contains helper functions for building the model and for loading model
 These helper functions are built to mirror those in the official TensorFlow implementation.
 """
 
+import logging
 import re
 import math
 import collections
@@ -293,5 +294,10 @@ def load_pretrained_weights(model, model_name, load_fc=True):
         state_dict.pop('_fc.weight')
         state_dict.pop('_fc.bias')
         res = model.load_state_dict(state_dict, strict=False)
-        assert str(res.missing_keys) == str(['_fc.weight', '_fc.bias']), 'issue loading pretrained weights'
+        if str(res.missing_keys) != str(['_fc.weight', '_fc.bias']):
+            logging.warning(
+                'There might have been an issue loading pretrained weights.\n' +
+                'Expected: ' + str(['_fc.weight', '_fc.bias']) + '\n'
+                'Got: ' + str(res.missing_keys)
+            )
     print('Loaded pretrained weights for {}'.format(model_name))
