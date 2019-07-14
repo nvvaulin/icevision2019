@@ -2,15 +2,16 @@ import argparse
 import os
 import pickle
 import time
+from contextlib import contextmanager
 from multiprocessing.dummy import Pool
 from pathlib import Path
 
-from SiamMask import SiamMultiTracker
 import cv2
 import numpy as np
 import pandas as pd
 from PIL import Image
 
+from SiamMask import SiamMultiTracker
 from classification import SignClassifier
 
 
@@ -96,14 +97,15 @@ def iterate_tracker(img_iterator, multi_tracker, **kwargs):
     '''
     yield imname,img,bboxes(x1,y1,x2,y2,score,class,sclass_score,track_id,track_score)
     '''
-    for imname,im,bboxes in img_iterator:
-        yield imname,im,multi_tracker.update(im,bboxes)
+    for imname, im, bboxes in img_iterator:
+        yield imname, im, multi_tracker.update(im, bboxes)
 
-def iterate_remove_tracks(img_iterator,multi_tracker,min_score=0.):
-    for imname,im,bboxes in img_iterator:
-        remove_ids = bboxes[:,7][bboxes[:,6]<min_score]
+
+def iterate_remove_tracks(img_iterator, multi_tracker, min_score=0.):
+    for imname, im, bboxes in img_iterator:
+        remove_ids = bboxes[:, 7][bboxes[:, 6] < min_score]
         multi_tracker.remove_tracks(remove_ids)
-        yield imname,im,bboxes
+        yield imname, im, bboxes
 
 
 def iterate_classifier_by_img(bbox_iterator, batch_size=8):
@@ -231,20 +233,28 @@ def draw_results(img, bboxes):
     return img
 
 
+@contextmanager
+def VideoWriter(*args, **kwargs):
+    out = cv2.VideoWriter(*args, **kwargs)
+    try:
+        yield out
+    finally:
+        out.release()
+
+
 def iterate_video(box_iterator, out_path, vsize=(1024, 1024)):
     '''
     boxes: bbox,dscore,class,cscore,track,tscore
     '''
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    out = cv2.VideoWriter(out_path, fourcc, 30.0, vsize)
-    for imname, im, bboxes in box_iterator:
-        im = draw_results(im, bboxes)
-        out.write(cv2.resize(im, vsize))
-        yield imname, im, bboxes
+    with VideoWriter(out_path, fourcc, 30.0, vsize) as out:
+        for imname, im, bboxes in box_iterator:
+            im = draw_results(im, bboxes)
+            out.write(cv2.resize(im, vsize))
+            yield imname, im, bboxes
 
 
 def main(frames_path, log_path, video_path):
-    
     mtracker = SiamMultiTracker()
     it = iterate_from_log(frames_path, log_path)
     it = iterate_async(it)
@@ -252,10 +262,10 @@ def main(frames_path, log_path, video_path):
     it = iterate_classifier(it)
     it = iterate_profiler(it, 'classify', 100)
     it = iterate_async(it)
-    it = iterate_profiler(iterate_tracker(it,mtracker), 'tracker', 100)
+    it = iterate_profiler(iterate_tracker(it, mtracker), 'tracker', 100)
     it = iterate_classifier(it)
-    it = iterate_profiler(it,'classify_t',100)
-    it = iterate_remove_tracks(it,mtracker)
+    it = iterate_profiler(it, 'classify_t', 100)
+    it = iterate_remove_tracks(it, mtracker)
     it = iterate_log(it, 'log.csv')
     it = iterate_async(it)
     it = iterate_video(it, video_path)
@@ -266,8 +276,8 @@ def main(frames_path, log_path, video_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--frames-path', default='data/2018-03-23_1352_right')
-    parser.add_argument('--log-path', default='logs/2018-03-23_1352_right.csv')
-    parser.add_argument('--video-path', default='2018-03-23_1352_right.avi')
+    parser.add_argument('--frames-path', help='Path to directory with frames', required=True)
+    parser.add_argument('--log-path', help='Path to CSV with detector output', required=True)
+    parser.add_argument('--video-path', help='Path where output video should be saved', required=True)
     args = parser.parse_args()
     main(args.frames_path, args.log_path, args.video_path)
