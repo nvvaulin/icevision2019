@@ -1,4 +1,5 @@
 import argparse
+import itertools
 import multiprocessing.pool
 import os
 import pickle
@@ -242,11 +243,15 @@ def read_img(tup):
     return imname, img
 
 
+def batches(l, size):
+    return iter(lambda: tuple(itertools.islice(iter(l), size)), ())
+
+
 def iterate_imgs(root, imlist, **kwargs):
     pool = multiprocessing.pool.ThreadPool(8)
-    im_paths = [(root, imname) for imname in imlist]
-    for imname, img in pool.imap(read_img, im_paths, chunksize=8):
-        yield imname, img
+    for imname_batch in batches(imlist, 8):
+        im_paths = [(root, imname) for imname in imname_batch]
+        yield from pool.imap(read_img, im_paths)
 
 
 def iterate_detector(img_iterator, stride=5, **kwargs):
@@ -322,8 +327,8 @@ def main(frames_path, log_path, video_path, num_shards, shard):
     it = iterate_imgs(frames_path, imlist)
     it = iterate_profiler(it, 'load img', 100)
     it = iterate_async(it)
-    it = iterate_profiler(iterate_detector(it,stride=5),'detector',100)
-    it = iterate_profiler(iterate_threshold(it,0.5),'det_after_threshold',100)
+    it = iterate_profiler(iterate_detector(it, stride=5), 'detector', 100)
+    it = iterate_profiler(iterate_threshold(it, 0.5), 'det_after_threshold', 100)
     it = iterate_classifier_by_img(it)
     it = iterate_profiler(it, 'classify', 100)
     it = iterate_async(it)
