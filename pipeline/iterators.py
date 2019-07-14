@@ -4,6 +4,7 @@ import multiprocessing.pool
 import os
 import pickle
 import sys
+import logging
 import time
 from contextlib import contextmanager
 from multiprocessing.dummy import Pool
@@ -99,14 +100,14 @@ def iterate_profiler(it, name, log_stap=10):
         ty.append(t1 - t2)
         if len(ty) >= log_stap:
             if len(i) > 2:
-                print('time %s %f, yield %f, num_boxes %f' % (
+                logging.info('time %s %f, yield %f, num_boxes %f' % (
                     name,
                     np.array(tit).mean(),
                     np.array(ty).mean(),
                     np.array(num_bbox).mean(),
                 ))
             else:
-                print('time %s %f, yield %f' % (
+                logging.info('time %s %f, yield %f' % (
                     name,
                     np.array(tit).mean(),
                     np.array(ty).mean()
@@ -245,7 +246,8 @@ def read_img(tup):
 
 
 def batches(l, size):
-    return iter(lambda: tuple(itertools.islice(iter(l), size)), ())
+    ll = iter(l)
+    return iter(lambda: tuple(itertools.islice(ll, size)), ())
 
 
 def iterate_imgs(root, imlist, **kwargs):
@@ -351,7 +353,7 @@ def iterate_submission(it, seq_name, submission_path):
                     'false',
                     '',
                 ])
-                fp.flush()
+            fp.flush()
             yield imname, img, bboxes
 
 
@@ -383,6 +385,11 @@ def main(frames_path, log_path, video_path, seq_name, submission_path, num_shard
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.INFO,
+        format='[%(asctime)-15s] %(levelname)s: %(message)s'
+    )
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--frames-path', help='Path to directory with frames', required=True)
     parser.add_argument('--log-path', help='Path to CSV with detector output')
