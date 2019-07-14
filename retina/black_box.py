@@ -122,7 +122,8 @@ def hires_prediction(img, net, verbose=True):
 
     res = []
     for i in range(0, len(scales), s):
-        print(i, i + s)
+        if verbose:
+            print(i, i + s)
         boxes, labels, scores = run_prediction_batched(net, crops[i:(i + s)], shifts[i:(i + s)], scales[i:(i + s)])
         if boxes is not None:
             res.append([boxes, labels, scores])
@@ -147,7 +148,8 @@ def hires_prediction(img, net, verbose=True):
 
 
 class RetinaDetector:
-    def __init__(self, device='cuda'):
+    def __init__(self, device='cuda', verbose=False):
+        self.verbose = verbose
         self.net = RetinaNet(backbone=cfg.backbone, num_classes=1, pretrained=False)
         checkpoint = torch.load(os.path.join('ckpts', 'efnet4', '29_ckpt.pth'), map_location=device)
         errors = self.net.load_state_dict(checkpoint['net'])
@@ -157,5 +159,5 @@ class RetinaDetector:
 
     def detect(self, img):
         with torch.no_grad():
-            boxes, labels, scores = hires_prediction(img, self.net, verbose=False)
+            boxes, labels, scores = hires_prediction(img, self.net, verbose=self.verbose)
         return boxes, labels, scores

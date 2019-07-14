@@ -128,7 +128,7 @@ class DataEncoder:
         # print('cls_preds', cls_preds.shape)
         # score, labels = cls_preds.max(-1)
         score = cls_preds.squeeze()
-        print(score.shape)
+        # print(score.shape)
         labels = torch.ones(score.shape)
 #         score, labels = cls_preds.max(-1)
         # print('score', score.shape, 'labels', labels.shape)
