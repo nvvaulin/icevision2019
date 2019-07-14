@@ -244,8 +244,8 @@ def main(frames_path, log_path, video_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--frames-path', default='data/2018-03-23_1352_right')
-    parser.add_argument('--log-path', default='logs/2018-03-23_1352_right.csv')
-    parser.add_argument('--video-path', default='2018-03-23_1352_right.avi')
+    parser.add_argument('--frames-path', help='Path to directory with frames', required=True)
+    parser.add_argument('--log-path', help='Path to CSV with detector output', required=True)
+    parser.add_argument('--video-path', help='Path where output video should be saved', required=True)
     args = parser.parse_args()
     main(args.frames_path, args.log_path, args.video_path)
