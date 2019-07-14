@@ -150,7 +150,7 @@ def siamese_init(im, target_pos, target_sz, model, hp=None, device='cpu'):
     # initialize the exemplar
     z_crop = get_subwindow_tracking(im, target_pos, p.exemplar_size, s_z, avg_chans)
 
-    z = Variable(z_crop.unsqueeze(0))
+    z = Variable(z_crop.unsqueeze(0)).half()
     zf = model.template(z.to(device))
 
     if p.windowing == 'cosine':
@@ -194,7 +194,7 @@ def siamese_track(state, im,model, mask_enable=False, refine_enable=False, devic
         cv2.waitKey(0)
 
     # extract scaled crops for search region x at previous target position
-    x_crop = Variable(get_subwindow_tracking(im, target_pos, p.instance_size, round(s_x), avg_chans).unsqueeze(0))
+    x_crop = Variable(get_subwindow_tracking(im, target_pos, p.instance_size, round(s_x), avg_chans).unsqueeze(0)).half()
 
     if mask_enable:
         score, delta, mask = net.track_mask(state['zf'],x_crop.to(device))

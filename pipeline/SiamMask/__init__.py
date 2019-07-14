@@ -21,11 +21,11 @@ class SiamTracker(object):
         self.siammask = Custom(anchors=self.cfg['anchors'])
         assert isfile(self.args.resume), 'Please download {} first.'.format(self.args.resume)
         self.siammask = load_pretrain(self.siammask, self.args.resume)
-        self.siammask.eval().to(self.device)
-
-    def get_state(self, im, bbox):
-        x, y = bbox[0], bbox[1]
-        w, h = bbox[2] - x, bbox[3] - y
+        self.siammask = self.siammask.eval().half().to(self.device)
+        
+    def get_state(self,im,bbox):
+        x,y = bbox[0],bbox[1]
+        w,h = bbox[2]-x,bbox[3]-y
         target_pos = np.array([x + w / 2, y + h / 2])
         target_sz = np.array([w, h])
         state = siamese_init(im, target_pos, target_sz, self.siammask, self.cfg['hp'], device=self.device)

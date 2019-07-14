@@ -140,7 +140,7 @@ def iterate_classifier_by_img(bbox_iterator, batch_size=8):
             yield imname, im, bboxes
 
 
-def iterate_classifier(bbox_iterator, batch_size=128):
+def iterate_classifier(bbox_iterator, batch_size=32):
     classifier = SignClassifier(ch_path='6_ckpt.pth')
 
     def iterate_crop(batch_box_iterator):
