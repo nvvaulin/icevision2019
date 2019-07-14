@@ -219,12 +219,18 @@ def iterate_video(box_iterator,out_path,vsize=(1024,1024)):
         out.write(cv2.resize(im,vsize))
         yield imname,im,bboxes     
 
-def main(imglist):
-    it = iterate_imgs(root,imlist)
-    it = iterate_log(iterate_detector(it))
-    it = iterate_log(iterate_tracker(it))
-    it = iterate_log(iterate_classify(it))
-    it = video_iterator(it)
-    for i in it:
+def main():
+    it = iterate_from_log('data/2018-03-23_1352_right','logs/2018-03-23_1352_right.csv')
+    it = iterate_async(it)
+    it = iterate_profiler(it,'load img',100)
+    it = iterate_classifier(it)
+    it = iterate_profiler(it,'classify',100)
+    it = iterate_box(it)
+    it = iterate_img(it)
+    it = iterate_async(it)
+    it = iterate_profiler(iterate_tracker(it),'tracker',100)
+    it = iterate_log(it,'log.csv')
+    it = iterate_async(it)
+    it = iterate_video(it,'2018-03-23_1352_right.avi')
+    for i,(p,im,bboxes) in enumerate(iterate_profiler(it,'pipeline',100)):
         pass
-    
