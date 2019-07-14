@@ -19,7 +19,7 @@ class SiamTracker(object):
         self.siammask = Custom(anchors=self.cfg['anchors'])
         assert isfile(self.args.resume), 'Please download {} first.'.format(self.args.resume)
         self.siammask = load_pretrain(self.siammask, self.args.resume)
-        self.siammask.eval().to(self.device)
+        self.siammask = self.siammask.eval().half().to(self.device)
         
     def get_state(self,im,bbox):
         x,y = bbox[0],bbox[1]
