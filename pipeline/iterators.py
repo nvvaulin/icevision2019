@@ -7,7 +7,7 @@ from SiamMask import SiamTracker,IoU
 import cv2
 import time
 from multiprocessing.dummy import Pool
-
+import pickle
 
 ########################geretal iter tools#################################
 def iterate_async(it):
