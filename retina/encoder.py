@@ -45,9 +45,9 @@ class DataEncoder:
             grid_size = (input_size/fm_size).floor()
             fm_w, fm_h = int(fm_size[0]), int(fm_size[1])
             xy = meshgrid(fm_w, fm_h)# [fm_h * fm_w, 2]
-            xy = xy.type(torch.FloatTensor) + 0.5            
+            xy = xy.type(torch.FloatTensor) + 0.5
             xy = (xy * grid_size).view(fm_w, fm_h, 1, 2).expand(fm_w, fm_h, 9, 2)
-            wh = self.anchor_edges[i].view(1, 1, 9, 2).expand(fm_w, fm_h,9, 2)
+            wh = self.anchor_edges[i].view(1, 1, 9, 2).expand(fm_w, fm_h, 9, 2)
             box = torch.cat([xy, wh], 3)  # [x, y, w, h]
             boxes.append(box.view(-1, 4))
         return torch.cat(boxes, 0)
@@ -70,7 +70,7 @@ class DataEncoder:
         loc_wh = torch.log(boxes[:, 2:] / anchor_boxes[:, 2:])
 
         loc_targets = torch.cat([loc_xy, loc_wh], 1)
-        loc_targets=loc_targets/self.std
+        loc_targets = loc_targets/self.std
         cls_targets = 1 + labels[max_ids]
 
         cls_targets[max_ious < 0.4] = 0

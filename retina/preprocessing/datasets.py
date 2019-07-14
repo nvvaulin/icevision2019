@@ -94,7 +94,7 @@ class IceDataset(Dataset):
 
         with open(os.path.join(DIR, 'classes_map.pkl'), 'rb') as f:
             self.label_map = pickle.load(f)
-        # print(self.label_map)
+        print(self.label_map)
         self.val = val
         paths = []
         self.test = test
