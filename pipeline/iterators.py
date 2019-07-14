@@ -17,7 +17,7 @@ from classification import SignClassifier
 
 sys.path.append('../retina')
 
-# from black_box import RetinaDetector
+from black_box import RetinaDetector
 
 
 ########################geretal iter tools#################################
@@ -210,17 +210,16 @@ def iterate_imgs(root, imlist, **kwargs):
     for imname in imlist:
         yield imname, Image.open(os.path.join(root, imname))
 
-
-# def iterate_detector(img_iterator, **kwargs):
-#     '''
-#     yield imname,img,bboxes(x1,y1,x2,y2,score)
-#     '''
-#     detector = RetinaDetector(**kwargs)
-#     for imname, img in img_iterator:
-#         boxes, labels, scores = detector.detect(img)
-#         assert boxes.shape[0] == scores.shape[0]
-#         assert boxes.shape[1] == 4
-#         yield imname, img, np.hstack(boxes, scores.reshape(-1, 1))
+def iterate_detector(img_iterator, **kwargs):
+    '''
+    yield imname,img,bboxes(x1,y1,x2,y2,score)
+    '''
+    detector = RetinaDetector(**kwargs)
+    for imname, img in img_iterator:
+        boxes, labels, scores = detector.detect(img)
+        assert boxes.shape[0] == scores.shape[0]
+        assert boxes.shape[1] == 4
+        yield imname, img, np.hstack([boxes, scores.reshape(-1, 1)])
 
 
 def draw_results(img, bboxes):
@@ -295,7 +294,7 @@ def main(frames_path, log_path, video_path):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--frames-path', help='Path to directory with frames', required=True)
-    parser.add_argument('--log-path', help='Path to CSV with detector output', required=True)
+    parser.add_argument('--log-path', help='Path to CSV with detector output')
     parser.add_argument('--video-path', help='Path where output video should be saved', required=True)
     args = parser.parse_args()
     main(args.frames_path, args.log_path, args.video_path)
