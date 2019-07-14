@@ -1,59 +1,55 @@
-from itertools import chain
-from glob import glob
-from preprocessing.datasets import IceDataset
-from encoder import DataEncoder
-import config as cfg
-import preprocessing.transforms as transforms
-import torch
-from retinanet import RetinaNet
+import logging
 import os
-from utils import t2np
-%matplotlib inline
-from PIL import Image
-from matplotlib import pyplot as plt
-import numpy as np
+from itertools import chain
 from time import time
-from IPython.display import display
 
+import numpy as np
+import torch
+from PIL import Image
+from torchvision.transforms import ToTensor, Normalize, Compose
+
+import config as cfg
 from encoder import DataEncoder
+from retinanet import RetinaNet
+
+val_transform = Compose([
+    ToTensor(), Normalize(cfg.mean, cfg.std)
+])
 
 
 def draw_prediction(img, bboxes, scores, labels):
     img = np.array(img)
     import cv2
-    cv2.line(img, (0, 800), (2448, 800), (0,0,255), 2)
-    cv2.line(img, (0, 1056), (2448, 1056), (0,0,255), 2)
-    
-    cv2.line(img, (0, 600), (2448, 600), (0,255,255), 2)
-    cv2.line(img, (0, 1112), (2448, 1112), (0,255,255), 2)
+    cv2.line(img, (0, 800), (2448, 800), (0, 0, 255), 2)
+    cv2.line(img, (0, 1056), (2448, 1056), (0, 0, 255), 2)
+
+    cv2.line(img, (0, 600), (2448, 600), (0, 255, 255), 2)
+    cv2.line(img, (0, 1112), (2448, 1112), (0, 255, 255), 2)
 
     for b, l, s in zip(bboxes, labels, scores):
-        cv2.rectangle(img, (int(b[0]), int(b[1])), (int(b[2]), int(b[3])), (0,0,255), 3)
-        cv2.putText(img, '{} ({:d})'.format(l, int(100*s)), (int(b[0]), int(b[1])-10), 1, 2, (0, 0, 0), 6)
-        cv2.putText(img, '{} ({:d})'.format(l, int(100*s)), (int(b[0]), int(b[1])-10), 1, 2, (255, 255, 255), 3)
+        cv2.rectangle(img, (int(b[0]), int(b[1])), (int(b[2]), int(b[3])), (0, 0, 255), 3)
+        cv2.putText(img, '{} ({:d})'.format(l, int(100 * s)), (int(b[0]), int(b[1]) - 10), 1, 2, (0, 0, 0), 6)
+        cv2.putText(img, '{} ({:d})'.format(l, int(100 * s)), (int(b[0]), int(b[1]) - 10), 1, 2, (255, 255, 255), 3)
     return Image.fromarray(img)
 
 
-
 def get_crops(img, x_from, y_from, x_to, y_to, size, step, scale):
-    crops = []
-    shifts = []
-    scales = []
     size_to = int(.5 + size * scale)
     for y in range(y_from, y_to, step):
         for x in range(x_from, x_to, step):
-            crop = img.crop((x, y, x+size, y+size)).resize((size_to, size_to))
+            crop = img.crop((x, y, x + size, y + size)).resize((size_to, size_to))
             yield crop, (x, y, x, y), scale
 
 
 def crop(img):
     small_crops = get_crops(img, -128, 800, 2400, 900, 256, 128, 2)
     middle_crops = get_crops(img, -256, 600, 2200, 700, 512, 256, 1)
-#     big_crops = get_crops(img, -256, -256, 2000, 1000, 1024, 512, 0.5)
+    big_crops = get_crops(img, -256, -256, 2000, 1000, 1024, 512, 0.5)
 
-#     return zip(*chain(small_crops, middle_crops, big_crops))
-    return zip(*chain(small_crops, middle_crops))
-#     return zip(*chain(middle_crops, big_crops))
+    return zip(*chain(small_crops, middle_crops, big_crops))
+    # return zip(*chain(small_crops, middle_crops))
+    # return zip(*chain(middle_crops, big_crops))
+
 
 def nms(dets, scores, thresh):
     x1 = dets[:, 0]
@@ -86,28 +82,29 @@ def nms(dets, scores, thresh):
 
 def run_prediction_batched(net, crops, shifts, scales):
     transformed = [val_transform(crop) for crop in crops]
-#     ti = torch.stack(transformed).to(net.device)
     ti = torch.stack(transformed).half().to(net.device)
     loc_preds, cls_preds = net(ti)
-    boxes, labels, scores = DataEncoder().decode(loc_preds, cls_preds, input_size=(512, 512), device=net.device, shifts=shifts, scales=scales)
+    boxes, labels, scores = DataEncoder().decode(loc_preds, cls_preds, input_size=(512, 512), device=net.device,
+                                                 shifts=shifts, scales=scales)
     if boxes is None:
         return None, None, None
     return boxes, labels, scores
 
 
 def crop_prediction(crop, net):
-    transformed = val_transform(crop)[None,...]
+    transformed = val_transform(crop)[None, ...]
     ti = transformed.half().to(net.device)
-#     ti = transformed.to(net.device)
+    #     ti = transformed.to(net.device)
     loc_preds, cls_preds = net(ti)
     shifts = torch.FloatTensor([0]).to(net.device)
     scales = torch.FloatTensor([1]).to(net.device)
-    boxes, labels, scores = DataEncoder().decode(loc_preds, cls_preds, input_size=(512, 512), device=net.device, shifts=shifts, scales=scales)
+    boxes, labels, scores = DataEncoder().decode(loc_preds, cls_preds, input_size=(512, 512), device=net.device,
+                                                 shifts=shifts, scales=scales)
     if boxes is None:
         return None, None, None
     keep = nms(boxes, scores.flatten(), thresh=0.3)
     boxes, labels, scores = boxes[keep], labels[keep], scores[keep]
-    
+
     return boxes, labels, scores
 
 
@@ -118,24 +115,23 @@ def hires_prediction(img, net, verbose=True):
     scales = torch.FloatTensor(scales).to(net.device)
     tok = time()
     if verbose:
-        print('{:d}ms for cropping {} patches'.format(int(1000*(tok-tik)), len(crops)))
+        print('{:d}ms for cropping {} patches'.format(int(1000 * (tok - tik)), len(crops)))
 
     tik = time()
     s = 10
-    
+
     res = []
     for i in range(0, len(scales), s):
-        print(i, i+s)
-        boxes, labels, scores = run_prediction_batched(net, crops[i:(i+s)], shifts[i:(i+s)], scales[i:(i+s)])
+        print(i, i + s)
+        boxes, labels, scores = run_prediction_batched(net, crops[i:(i + s)], shifts[i:(i + s)], scales[i:(i + s)])
         if boxes is not None:
             res.append([boxes, labels, scores])
     if not res:
         return None, None, None
     boxes, labels, scores = map(np.concatenate, zip(*res))
-#     print(scores)
     tok = time()
     if verbose:
-        print('{:d}ms for predicting'.format(int(1000*(tok-tik))))
+        print('{:d}ms for predicting'.format(int(1000 * (tok - tik))))
 
     if boxes is None:
         return None, None, None
@@ -145,36 +141,21 @@ def hires_prediction(img, net, verbose=True):
     boxes, labels, scores = boxes[keep], labels[keep], scores[keep]
     tok = time()
     if verbose:
-        print('{:d}ms for nms'.format(int(1000*(tok-tik))))
-    
+        print('{:d}ms for nms'.format(int(1000 * (tok - tik))))
+
     return boxes, labels, scores
 
 
+class RetinaDetector:
+    def __init__(self, device='cuda'):
+        self.net = RetinaNet(backbone=cfg.backbone, num_classes=1, pretrained=False)
+        checkpoint = torch.load(os.path.join('ckpts', 'efnet4', '29_ckpt.pth'), map_location=device)
+        errors = self.net.load_state_dict(checkpoint['net'])
+        logging.warning('Errors from loading Retina model: {}'.format(errors))
+        self.net = self.net.half().eval().to(device)
+        self.net.device = device
 
-
-DEVICE='cuda'
-
-
-
-# mean, std = (0.499, 0.523, 0.532), (0.200, 0.202, 0.224)   
-
-from torchvision.transforms import ToTensor, Normalize, Compose
-val_transform = Compose([
-    ToTensor(),Normalize(cfg.mean, cfg.std)
-])
-
-
-net = RetinaNet(backbone=cfg.backbone, num_classes=1, pretrained=False)
-checkpoint = torch.load(os.path.join('ckpts', 'efnet4', '29_ckpt.pth'), map_location=DEVICE)
-kek = net.load_state_dict(checkpoint['net'])
-# net = net.eval().to(DEVICE)
-net = net.half().eval().to(DEVICE)
-net.device = DEVICE
-
-img = Image.open(impaths[2745])
-
-with torch.no_grad():
-    boxes, labels, scores = hires_prediction(img, net, verbose=False)
-    
-    
-    
+    def detect(self, img):
+        with torch.no_grad():
+            boxes, labels, scores = hires_prediction(img, self.net, verbose=False)
+        return boxes, labels, scores
