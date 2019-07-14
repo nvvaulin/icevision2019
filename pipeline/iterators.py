@@ -8,6 +8,7 @@ import cv2
 import time
 from multiprocessing.dummy import Pool
 import pickle
+import argparse
 
 ########################geretal iter tools#################################
 def iterate_async(it):
@@ -27,7 +28,7 @@ def iterate_batched(it,batch_size):
             batch = []
     if len(batch)>=0:
         yield batch
-        
+
 def iterate_unbatch(it):
     for batch in it:
         for i in batch:
@@ -37,7 +38,7 @@ def iterate_box(img_iterator):
     for imname,im,bboxes in img_iterator:
         for box in bboxes:
             yield imname,im,box
-            
+
 def iterate_img(box_iterator,box_len=-1):
     cur_imname = ''
     cur_im = None
@@ -46,12 +47,12 @@ def iterate_img(box_iterator,box_len=-1):
         if imname != cur_imname:
             if cur_im != None:
                 bboxes = np.array(bboxes,dtype=np.float32)
-                yield cur_imname,cur_im,bboxes                
+                yield cur_imname,cur_im,bboxes
             bboxes = []
             cur_imname = imname
             cur_im = im
         bboxes.append(box)
-            
+
     if cur_im != None:
         bboxes = np.array(bboxes,dtype=np.float32)
         yield cur_imname,cur_im,bboxes
@@ -70,8 +71,8 @@ def iterate_profiler(it,name,log_stap = 10):
             print('time %s %f, yield %f'%(name,np.array(tit).mean(),np.array(ty).mean()))
             tit = []
             ty = []
-            
-            
+
+
 ########################tracker#################################
 
 
@@ -83,15 +84,15 @@ def iterate_tracker(detector_iterator,min_iou=0.5,min_det_conf=0.9,min_track_sco
     states = []
     for imname,img,bboxes in detector_iterator:
         np_img = np.array(img)[:,:,::-1]
-        
+
         #update
         states = [tracker.track(state,np_img) for state in states]
         states = [i for i in states if i['score'] > min_track_score]
         for i in states:
             i['input_box'] = []
-            
+
         #find new
-        if len(states) > 0 and len(bboxes) > 0:            
+        if len(states) > 0 and len(bboxes) > 0:
             tboxes = np.array([i['box'] for i in states])
             iou = IoU(tboxes,bboxes[:,:4])
             for i,ii in enumerate(iou):
@@ -102,12 +103,12 @@ def iterate_tracker(detector_iterator,min_iou=0.5,min_det_conf=0.9,min_track_sco
         else:
             new_track_boxes = bboxes[bboxes[:,-1] > min_det_conf]
             not_tracked_boxes = bboxes[(bboxes[:,-1] <= min_det_conf)]
-            
+
         for box in new_track_boxes:
             state = tracker.get_state(np_img,box[:4])
             state['input_box'] = box
             states.append(state)
-        
+
         #make result
         result = np.zeros((len(states)+len(not_tracked_boxes),not_tracked_boxes.shape[1]+2),dtype=np.float32)-1.
         for i,s in enumerate(states):
@@ -117,23 +118,23 @@ def iterate_tracker(detector_iterator,min_iou=0.5,min_det_conf=0.9,min_track_sco
                 result[i][4:len(ibox)] = ibox[4:]
             result[i][-2] = s['track_id']
             result[i][-1] = s['score']
-            
+
         result[len(states):,:len(box)] = not_tracked_boxes
-        
+
         yield imname,img,result
-           
-            
+
+
 def iterate_classifier(bbox_iterator,batch_size=128):
-    classifier = SignClassifier()
+    classifier = SignClassifier(ch_path='6_ckpt.pth')
     def iterate_crop(batch_box_iterator):
-        for batch in batch_box_iterator:   
+        for batch in batch_box_iterator:
             yield batch,[SignClassifier.crop(im,box[:4]) for imname,im,box in batch]
-            
+
     def iterate_batch_prediction(crop_iterator):
-        for batch,crops in crop_iterator:   
+        for batch,crops in crop_iterator:
             pred = classifier.predict(crops)
             batch = [(imname,im,np.concatenate((box,p))) for (imname,im,box),p in zip(batch,pred) ]
-            yield batch    
+            yield batch
     it = iterate_box(bbox_iterator)
     it = iterate_batched(it,batch_size)
     it = iterate_crop(it)
@@ -143,10 +144,10 @@ def iterate_classifier(bbox_iterator,batch_size=128):
     it = iterate_img(it)
     for i in it:
         yield i
-        
+
 def iterate_from_log(root,log_path):
     '''
-    yield bbox_iterator yields 
+    yield bbox_iterator yields
     '''
     df = pd.read_csv(log_path)
     cols = ['xtl','ytl','xbr','ybr','score','track','track_score','class','class_score']
@@ -156,11 +157,11 @@ def iterate_from_log(root,log_path):
         imname = bbox['imname'].values[0]
         img = Image.open(os.path.join(root,imname))
         yield imname,img,bbox[cols].values.astype(np.float32)
-        
+
 
 def iterate_log(iterator,log_path,t='w'):
     '''
-    yield bbox_iterator yields 
+    yield bbox_iterator yields
     '''
     log = open(log_path,t)
     cols = ['xtl','ytl','xbr','ybr','score','class','class_score','track','track_score']
@@ -168,7 +169,7 @@ def iterate_log(iterator,log_path,t='w'):
         if i == 0:
             log.write(','.join(['imname']+[cols[j] for j in range(bbox.shape[1])]))
         log.write('\n'+'\n'.join([','.join([imname]+['%.3f'%j for j in box]) for box in bbox]))
-        log.flush()            
+        log.flush()
         yield imname,img,bbox
 
 def iterate_imgs(root,imlist,**kwargs):
@@ -177,12 +178,12 @@ def iterate_imgs(root,imlist,**kwargs):
     '''
     for imname in imlist:
         yield imname,Image.open(os.path.join(root,imname))
-    
+
 def iterate_detector(img_iterator,**kwargs):
     '''
     yield imname,img,bboxes(x1,y1,x2,y2,score)
-    '''    
-      
+    '''
+
 def draw_results(img,bboxes):
     '''
     boxes: bbox,dscore,class,cscore,track,tscore
@@ -202,7 +203,7 @@ def draw_results(img,bboxes):
             if box[-1] > 0:
                 color[0] = 255
             text=text+';'+str(int(box[8]*10))
-            
+
         cv2.putText(img,text, (x1,y1),1, 2, (0,0,0),6)
         cv2.putText(img,text, (x1,y1),1, 2, (255,255,255),3)
         cv2.rectangle(img,(x1,y1),(x2,y2),color,3)
@@ -217,10 +218,16 @@ def iterate_video(box_iterator,out_path,vsize=(1024,1024)):
     for imname,im,bboxes in box_iterator:
         im = draw_results(im,bboxes)
         out.write(cv2.resize(im,vsize))
-        yield imname,im,bboxes     
+        yield imname,im,bboxes
 
 def main():
-    it = iterate_from_log('data/2018-03-23_1352_right','logs/2018-03-23_1352_right.csv')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--frames-path', default='data/2018-03-23_1352_right')
+    parser.add_argument('--log-path', default='logs/2018-03-23_1352_right.csv')
+    parser.add_argument('--video-path', default='2018-03-23_1352_right.avi')
+    args = parser.parse_args()
+
+    it = iterate_from_log(args.frames_path, args.log_path)
     it = iterate_async(it)
     it = iterate_profiler(it,'load img',100)
     it = iterate_classifier(it)
@@ -229,8 +236,9 @@ def main():
     it = iterate_img(it)
     it = iterate_async(it)
     it = iterate_profiler(iterate_tracker(it),'tracker',100)
-    it = iterate_log(it,'log.csv')
+    it = iterate_log(it, 'log.csv')
     it = iterate_async(it)
-    it = iterate_video(it,'2018-03-23_1352_right.avi')
-    for i,(p,im,bboxes) in enumerate(iterate_profiler(it,'pipeline',100)):
+    it = iterate_video(it, args.video_path)
+    it = iterate_profiler(it,'pipeline',100)
+    for i,(p,im,bboxes) in enumerate(it):
         pass
