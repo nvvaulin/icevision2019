@@ -88,19 +88,27 @@ def iterate_profiler(it, name, log_stap=10):
     ty = []
     num_bbox = []
     for j, i in enumerate(it):
-        num_bbox.append(len(i[-1]))
+        if len(i) > 2:
+            num_bbox.append(len(i[2]))
         t2 = time.time()
         tit.append(t2 - t1)
         yield i
         t1 = time.time()
         ty.append(t1 - t2)
         if len(ty) >= log_stap:
-            print('time %s %f, yield %f, num_boxes %f' % (
-                name,
-                np.array(tit).mean(),
-                np.array(ty).mean(),
-                np.array(num_bbox).mean(),
-            ))
+            if len(i) > 2:
+                print('time %s %f, yield %f, num_boxes %f' % (
+                    name,
+                    np.array(tit).mean(),
+                    np.array(ty).mean(),
+                    np.array(num_bbox).mean(),
+                ))
+            else:
+                print('time %s %f, yield %f' % (
+                    name,
+                    np.array(tit).mean(),
+                    np.array(ty).mean()
+                ))
             num_bbox = []
             tit = []
             ty = []
@@ -141,7 +149,7 @@ def iterate_classifier_by_img(bbox_iterator, batch_size=8):
             yield imname, im, bboxes
 
 
-def iterate_classifier(bbox_iterator, batch_size=32):
+def iterate_classifier(bbox_iterator, batch_size=128):
     classifier = SignClassifier(ch_path='6_ckpt.pth')
 
     def iterate_crop(batch_box_iterator):
@@ -312,10 +320,10 @@ def main(frames_path, log_path, video_path, num_shards, shard):
     shard_size = (len(imlist) + num_shards - 1) // num_shards
     imlist = imlist[shard * shard_size:(shard + 1) * shard_size]
     it = iterate_imgs(frames_path, imlist)
-    it = iterate_async(it)
-    it = iterate_profiler(iterate_detector(it, stride=5), 'detector')
-    it = iterate_profiler(iterate_threshold(it, 0.5), 'det_after_threshold')
     it = iterate_profiler(it, 'load img', 100)
+    it = iterate_async(it)
+    it = iterate_profiler(iterate_detector(it,stride=5),'detector',100)
+    it = iterate_profiler(iterate_threshold(it,0.5),'det_after_threshold',100)
     it = iterate_classifier_by_img(it)
     it = iterate_profiler(it, 'classify', 100)
     it = iterate_async(it)
