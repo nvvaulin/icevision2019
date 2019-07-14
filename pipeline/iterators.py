@@ -236,14 +236,8 @@ def iterate_video(box_iterator, out_path, vsize=(1024, 1024)):
         yield imname, im, bboxes
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--frames-path', default='data/2018-03-23_1352_right')
-    parser.add_argument('--log-path', default='logs/2018-03-23_1352_right.csv')
-    parser.add_argument('--video-path', default='2018-03-23_1352_right.avi')
-    args = parser.parse_args()
-
-    it = iterate_from_log(args.frames_path, args.log_path)
+def main(frames_path, log_path, video_path):
+    it = iterate_from_log(frames_path, log_path)
     it = iterate_async(it)
     it = iterate_profiler(it, 'load img', 100)
     it = iterate_classifier(it)
@@ -254,7 +248,16 @@ def main():
     it = iterate_profiler(iterate_tracker(it), 'tracker', 100)
     it = iterate_log(it, 'log.csv')
     it = iterate_async(it)
-    it = iterate_video(it, args.video_path)
+    it = iterate_video(it, video_path)
     it = iterate_profiler(it, 'pipeline', 100)
     for i, (p, im, bboxes) in enumerate(it):
         pass
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--frames-path', default='data/2018-03-23_1352_right')
+    parser.add_argument('--log-path', default='logs/2018-03-23_1352_right.csv')
+    parser.add_argument('--video-path', default='2018-03-23_1352_right.avi')
+    args = parser.parse_args()
+    main(args.frames_path, args.log_path, args.video_path)
