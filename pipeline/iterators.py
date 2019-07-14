@@ -6,7 +6,7 @@ import time
 from contextlib import contextmanager
 from multiprocessing.dummy import Pool
 from pathlib import Path
-
+import imageio
 import cv2
 import numpy as np
 import pandas as pd
@@ -182,8 +182,10 @@ def iterate_from_log(root, log_path):
 
     for _, bbox in df.groupby('rinx', sort=True):
         imname = bbox['imname'].values[0]
-        frame_idx = int(imname.split('.')[0])
-        img = Image.open(all_images[frame_idx])
+        imname = all_images[int(imname.split('.')[0])]
+        img = imageio.imread(imname)
+        img = cv2.cvtColor(img, cv2.COLOR_BAYER_BG2BGR)
+        img = Image.fromarray(img)
         yield imname, img, bbox[cols].values.astype(np.float32)
 
 
@@ -207,7 +209,6 @@ def iterate_imgs(root, imlist, **kwargs):
     '''
     for imname in imlist:
         yield imname, Image.open(os.path.join(root, imname))
-
 
 def iterate_detector(img_iterator, **kwargs):
     '''
