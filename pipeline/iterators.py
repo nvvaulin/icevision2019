@@ -330,6 +330,7 @@ def iterate_submission(it, seq_name, submission_path):
         writer = csv.writer(fp, delimiter='\t')
         writer.writerow(['frame', 'xtl', 'ytl', 'xbr', 'ybr', 'class', 'temporary', 'data'])
         for imname, img, bboxes in it:
+            imname = Path(imname)
             for box in bboxes:
                 xtl, ytl, xbr, ybr = box[:4]
                 det_score = box[4]
