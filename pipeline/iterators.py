@@ -3,6 +3,7 @@ import os
 import pickle
 import time
 from multiprocessing.dummy import Pool
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -162,11 +163,15 @@ def iterate_from_log(root, log_path):
     '''
     df = pd.read_csv(log_path)
     cols = ['xtl', 'ytl', 'xbr', 'ybr', 'score', 'track', 'track_score', 'class', 'class_score']
-    cols = [i for i in cols if i in df.columns]
+    cols = [col for col in cols if col in df.columns]
     df['rinx'] = np.array([-int(i.split('.')[0]) for i in df.imname.values])
-    for _, bbox in df.groupby('rinx'):
+
+    all_images = sorted(Path(root).iterdir())
+
+    for _, bbox in df.groupby('rinx', sort=True):
         imname = bbox['imname'].values[0]
-        img = Image.open(os.path.join(root, imname))
+        frame_idx = int(imname.split('.')[0])
+        img = Image.open(all_images[frame_idx])
         yield imname, img, bbox[cols].values.astype(np.float32)
 
 
