@@ -24,13 +24,15 @@ def iterate_async(it):
         yield i
         i = future.get()
 
-def simulate_detector(it,stride = 10):
-    for i,(p,im,bboxes) in enumerate(it):
+
+def simulate_detector(it, stride=10):
+    for i, (p, im, bboxes) in enumerate(it):
         if (i % stride) == 0:
-            yield p,im,bboxes
+            yield p, im, bboxes
         else:
-            yield p,im,bboxes[:0,:]
-            
+            yield p, im, bboxes[:0, :]
+
+
 def iterate_batched(it, batch_size):
     batch = []
     for i in it:
@@ -86,7 +88,12 @@ def iterate_profiler(it, name, log_stap=10):
         t1 = time.time()
         ty.append(t1 - t2)
         if len(ty) >= log_stap:
-            print('time %s %f, yield %f, num_boxes %f' % (name, np.array(tit).mean(), np.array(ty).mean(),np.array(num_bbox).mean()))
+            print('time %s %f, yield %f, num_boxes %f' % (
+                name,
+                np.array(tit).mean(),
+                np.array(ty).mean(),
+                np.array(num_bbox).mean(),
+            ))
             num_bbox = []
             tit = []
             ty = []
@@ -110,27 +117,23 @@ def iterate_remove_tracks(img_iterator, multi_tracker, min_score=0.):
 
 def iterate_classifier_by_img(bbox_iterator, batch_size=8):
     classifier = SignClassifier(ch_path='6_ckpt.pth')
-    
-    def iterate_batch_prediction(crop_iterator):
-        for batch, crops in crop_iterator:
-            yield res_batch
 
-    for imname,im,bboxes in bbox_iterator:
+    for imname, im, bboxes in bbox_iterator:
         if len(bboxes) == 0:
             if bboxes.shape[1] < 7:
-                bboxes = np.concatenate((bboxes, bboxes[:,:2]),1)            
-            yield imname,im,bboxes
+                bboxes = np.concatenate((bboxes, bboxes[:, :2]), 1)
+            yield imname, im, bboxes
         else:
             crops = [SignClassifier.crop(im, box[:4]) for box in bboxes]
-            p = [classifier.predict(b) for b in iterate_batched(crops,batch_size)]
+            p = [classifier.predict(b) for b in iterate_batched(crops, batch_size)]
             p = np.concatenate(p)
             if bboxes.shape[1] >= 7:
-                bboxes[:,5:7] = p
+                bboxes[:, 5:7] = p
             else:
-                bboxes = np.concatenate((bboxes, p),1)
-            yield imname,im,bboxes
-            
-        
+                bboxes = np.concatenate((bboxes, p), 1)
+            yield imname, im, bboxes
+
+
 def iterate_classifier(bbox_iterator, batch_size=128):
     classifier = SignClassifier(ch_path='6_ckpt.pth')
 
@@ -257,9 +260,10 @@ def iterate_video(box_iterator, out_path, vsize=(1024, 1024)):
 def main(frames_path, log_path, video_path):
     mtracker = SiamMultiTracker()
     it = iterate_from_log(frames_path, log_path)
+    it = simulate_detector(it)
     it = iterate_async(it)
     it = iterate_profiler(it, 'load img', 100)
-    it = iterate_classifier(it)
+    it = iterate_classifier_by_img(it)
     it = iterate_profiler(it, 'classify', 100)
     it = iterate_async(it)
     it = iterate_profiler(iterate_tracker(it, mtracker), 'tracker', 100)
