@@ -52,3 +52,69 @@ def IoU(a,b):
     i = np.clip((np.minimum(a[:,:,2:],b[:,:,2:]) - np.maximum(a[:,:,:2],b[:,:,:2])),0,1e10)
     i = i[:,:,0]*i[:,:,1]
     return np.clip(i/(aa[:,None]+ab[None,:]-i),0,1)
+
+
+
+
+
+class SiamMultiTracker(object):
+    def __init__(self,min_iou=0.5,min_det_conf=0.5,min_track_score=0.9,\
+                 resume=os.path.join(os.path.dirname(__file__),'experiments/siammask_sharp/SiamMask_DAVIS.pth'),\
+                 config=os.path.join(os.path.dirname(__file__),'experiments/siammask_sharp/config_davis.json')):
+        self.tracker = SiamTracker(resume=resume,config=config)
+        self.states = []
+        self.min_iou = min_iou
+        self.min_det_conf = min_det_conf
+        self.min_track_score = min_track_score
+        
+
+    def update(self,img,bboxes):
+        '''
+        yield imname,img,bboxes(x1,y1,x2,y2,score,class,sclass_score,track_id,track_score)
+        '''
+        min_iou = self.min_iou
+        min_det_conf = self.min_det_conf
+        min_track_score = self.min_track_score
+        np_img = np.array(img)[:, :, ::-1]
+
+        # update
+        self.states = [self.tracker.track(state, np_img) for state in self.states]
+        self.states = [i for i in self.states if i['score'] > min_track_score]
+        for i in self.states:
+            i['input_box'] = []
+
+        # find new
+        if len(self.states) > 0 and len(bboxes) > 0:
+            tboxes = np.array([i['box'] for i in self.states])
+            iou = IoU(tboxes, bboxes[:, :4])
+            for i, ii in enumerate(iou):
+                if ii.max() > min_iou:
+                    self.states[i]['input_box'] = bboxes[ii.argmax()]
+            not_tracked_boxes = bboxes[(iou.max(0) < min_iou) & (bboxes[:, -1] <= min_det_conf)]
+            new_track_boxes = bboxes[(iou.max(0) < min_iou) & (bboxes[:, -1] > min_det_conf)]
+        else:
+            new_track_boxes = bboxes[bboxes[:, -1] > min_det_conf]
+            not_tracked_boxes = bboxes[(bboxes[:, -1] <= min_det_conf)]
+
+        for box in new_track_boxes:
+            state = self.tracker.get_state(np_img, box[:4])
+            state['input_box'] = box
+            self.states.append(state)
+
+        # make result
+        result = np.zeros((len(self.states) + len(not_tracked_boxes), not_tracked_boxes.shape[1] + 2), dtype=np.float32) - 1.
+        for i, s in enumerate(self.states):
+            result[i][:4] = s['box']
+            ibox = s['input_box']
+            if len(ibox) > 4:
+                result[i][4:len(ibox)] = ibox[4:]
+            result[i][-2] = s['track_id']
+            result[i][-1] = s['score']
+
+        result[len(self.states):, :not_tracked_boxes.shape[1]] = not_tracked_boxes
+
+        return result
+
+    def remove_tracks(self,track_ids):
+        track_ids = set([int(i) for i in track_ids])
+        self.states = [s for s in self.states if not( int(s['track_id']) in track_ids)]

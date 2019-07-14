@@ -5,11 +5,11 @@ import time
 from multiprocessing.dummy import Pool
 from pathlib import Path
 
+from SiamMask import SiamMultiTracker
 import cv2
 import numpy as np
 import pandas as pd
 from PIL import Image
-from SiamMask import SiamTracker, IoU
 
 from classification import SignClassifier
 
@@ -83,56 +83,19 @@ def iterate_profiler(it, name, log_stap=10):
 
 
 ########################tracker#################################
-
-
-def iterate_tracker(detector_iterator, min_iou=0.5, min_det_conf=0.9, min_track_score=0.95, **kwargs):
+def iterate_tracker(img_iterator, multi_tracker, **kwargs):
     '''
     yield imname,img,bboxes(x1,y1,x2,y2,score,class,sclass_score,track_id,track_score)
     '''
-    tracker = SiamTracker()
-    states = []
-    for imname, img, bboxes in detector_iterator:
-        np_img = np.array(img)[:, :, ::-1]
+    for imname,im,bboxes in img_iterator:
+        yield imname,im,multi_tracker.update(im,bboxes)
 
-        # update
-        states = [tracker.track(state, np_img) for state in states]
-        states = [i for i in states if i['score'] > min_track_score]
-        for i in states:
-            i['input_box'] = []
-
-        # find new
-        if len(states) > 0 and len(bboxes) > 0:
-            tboxes = np.array([i['box'] for i in states])
-            iou = IoU(tboxes, bboxes[:, :4])
-            for i, ii in enumerate(iou):
-                if ii.max() > min_iou:
-                    states[i]['input_box'] = bboxes[ii.argmax()]
-            not_tracked_boxes = bboxes[(iou.max(0) < min_iou) & (bboxes[:, -1] <= min_det_conf)]
-            new_track_boxes = bboxes[(iou.max(0) < min_iou) & (bboxes[:, -1] > min_det_conf)]
-        else:
-            new_track_boxes = bboxes[bboxes[:, -1] > min_det_conf]
-            not_tracked_boxes = bboxes[(bboxes[:, -1] <= min_det_conf)]
-
-        for box in new_track_boxes:
-            state = tracker.get_state(np_img, box[:4])
-            state['input_box'] = box
-            states.append(state)
-
-        # make result
-        result = np.zeros((len(states) + len(not_tracked_boxes), not_tracked_boxes.shape[1] + 2), dtype=np.float32) - 1.
-        for i, s in enumerate(states):
-            result[i][:4] = s['box']
-            ibox = s['input_box']
-            if len(ibox) > 4:
-                result[i][4:len(ibox)] = ibox[4:]
-            result[i][-2] = s['track_id']
-            result[i][-1] = s['score']
-
-        result[len(states):, :len(box)] = not_tracked_boxes
-
-        yield imname, img, result
-
-
+def iterate_remove_tracks(img_iterator,multi_tracker,min_score=0.):
+    for imname,im,bboxes in img_iterator:
+        remove_ids = bboxes[:,7][bboxes[:,6]<min_score]
+        multi_tracker.remove_tracks(remove_ids)
+        yield imname,im,bboxes
+        
 def iterate_classifier(bbox_iterator, batch_size=128):
     classifier = SignClassifier(ch_path='6_ckpt.pth')
 
@@ -143,8 +106,14 @@ def iterate_classifier(bbox_iterator, batch_size=128):
     def iterate_batch_prediction(crop_iterator):
         for batch, crops in crop_iterator:
             pred = classifier.predict(crops)
-            batch = [(imname, im, np.concatenate((box, p))) for (imname, im, box), p in zip(batch, pred)]
-            yield batch
+            res_batch = []
+            for (imname, im, box), p in zip(batch, pred):
+                if len(box) >= 7:
+                    box[5:7] = p
+                else:
+                    box = np.concatenate((box, p))
+                res_batch.append((imname, im, box))
+            yield res_batch
 
     it = iterate_box(bbox_iterator)
     it = iterate_batched(it, batch_size)
@@ -243,15 +212,18 @@ def iterate_video(box_iterator, out_path, vsize=(1024, 1024)):
 
 
 def main(frames_path, log_path, video_path):
+    
+    mtracker = SiamMultiTracker()
     it = iterate_from_log(frames_path, log_path)
     it = iterate_async(it)
     it = iterate_profiler(it, 'load img', 100)
     it = iterate_classifier(it)
     it = iterate_profiler(it, 'classify', 100)
-    it = iterate_box(it)
-    it = iterate_img(it)
     it = iterate_async(it)
-    it = iterate_profiler(iterate_tracker(it), 'tracker', 100)
+    it = iterate_profiler(iterate_tracker(it,mtracker), 'tracker', 100)
+    it = iterate_classifier(it)
+    it = iterate_profiler(it,'classify_t',100)
+    it = iterate_remove_tracks(it,mtracker)
     it = iterate_log(it, 'log.csv')
     it = iterate_async(it)
     it = iterate_video(it, video_path)
