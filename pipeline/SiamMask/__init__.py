@@ -55,6 +55,18 @@ def IoU(a, b):
     i = i[:, :, 0] * i[:, :, 1]
     return np.clip(i / (aa[:, None] + ab[None, :] - i), 0, 1)
 
+def IoMin(a, b):
+    aa = (a[:, 2:] - a[:, :2])
+    aa = aa[:, 0] * aa[:, 1]
+    ab = (b[:, 2:] - b[:, :2])
+    ab = ab[:, 0] * ab[:, 1]
+
+    a = a[:, None, :] + np.zeros_like(b)[None, :, :]
+    b = b[None, :, :] + np.zeros_like(a)
+    i = np.clip((np.minimum(a[:, :, 2:], b[:, :, 2:]) - np.maximum(a[:, :, :2], b[:, :, :2])), 0, 1e10)
+    i = i[:, :, 0] * i[:, :, 1]
+    return np.clip(i / np.minimum(0*aa[:, None] + ab[None, :],aa[:, None] + 0*ab[None, :]), 0, 1)
+                 
 
 class SiamMultiTracker(object):
     def __init__(self, min_iou=0.5, min_det_conf=0.5, min_track_score=0.9, \

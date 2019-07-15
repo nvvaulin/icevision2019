@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 
-from SiamMask import SiamMultiTracker
+from SiamMask import SiamMultiTracker,IoMin
 from classification import SignClassifier
 
 sys.path.append('../retina')
@@ -180,7 +180,16 @@ def iterate_classifier(bbox_iterator, batch_size=128):
     it = iterate_img(it)
     for i in it:
         yield i
-
+        
+        
+def iterate_remove_internal_box(it,thresh=0.9):
+    for imname,im,bboxes in it:
+        iom = IoMin(bboxes[:,:4],bboxes[:,:4])
+        iom -= np.eye(len(bboxes))
+        for i in range(len(bboxes)):
+            if (iom[i] > thresh).sum() == 0 and bboxes[:,6][(iom[i] > thesh)].max() > bboxes[i,6]:
+                bboxes[i,6] = 0
+        yield bboxes
 
 def iterate_from_log(root, log_path):
     '''
@@ -196,8 +205,9 @@ def iterate_from_log(root, log_path):
     for _, bbox in df.groupby('rinx', sort=True):
         imname = bbox['imname'].values[0]
         imname = all_images[int(imname.split('.')[0])]
-        img = imageio.imread(imname)
-        img = cv2.cvtColor(img, cv2.COLOR_BAYER_BG2BGR)
+        img = cv2.imread(str(imname))
+        print(img.shape)
+#         img = cv2.cvtColor(img, cv2.COLOR_BAYER_BG2BGR)
         img = Image.fromarray(img)
         yield imname, img, bbox[cols].values.astype(np.float32)
 
@@ -374,6 +384,7 @@ def main(frames_path, log_path, video_path, seq_name, submission_path, num_shard
     it = iterate_profiler(iterate_tracker(it, mtracker), 'tracker', 100)
     it = iterate_classifier(it)
     it = iterate_profiler(it, 'classify_t', 100)
+    it = iterate_remove_internal_box(it)
     it = iterate_remove_tracks(it, mtracker)
     if debug:
         it = iterate_log(it, 'log.csv')
