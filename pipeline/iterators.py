@@ -189,7 +189,7 @@ def iterate_remove_internal_box(it,thresh=0.9):
         for i in range(len(bboxes)):
             if (iom[i] > thresh).sum() == 0 and bboxes[:,6][(iom[i] > thesh)].max() > bboxes[i,6]:
                 bboxes[i,6] = 0
-        yield bboxes
+        yield imname,im,bboxes
 
 def iterate_from_log(root, log_path):
     '''
