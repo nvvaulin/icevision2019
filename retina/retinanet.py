@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from resnet import *
+from retina_resnet import *
 from efnet import EfficientNet
 from itertools import chain
 
