@@ -346,7 +346,7 @@ def iterate_video(box_iterator, out_path, vsize=(1024, 1024)):
 
 
 def iterate_submission(it, seq_name, submission_path):
-    with open(submission_path, 'w') as fp:
+    with open(submission_path, 'a') as fp:
         writer = csv.writer(fp, delimiter='\t')
         writer.writerow(['frame', 'xtl', 'ytl', 'xbr', 'ybr', 'class', 'temporary', 'data'])
         for imname, img, bboxes in it:
@@ -378,11 +378,17 @@ def iterate_submission(it, seq_name, submission_path):
             yield imname, img, bboxes
 
 
-def main(frames_path, log_path, video_path, seq_name, submission_path, num_shards, shard, debug=False):
+def main(frames_path, log_path, video_path, seq_name, submission_path, num_shards, shard, debug=False, warm_start=True):
     mtracker = SiamMultiTracker()
     imlist = sorted([i for i in os.listdir(frames_path) if i.split('.')[-1] in ['pnm', 'png', 'jpg']], reverse=True)
     shard_size = (len(imlist) + num_shards - 1) // num_shards
     imlist = imlist[shard * shard_size:(shard + 1) * shard_size]
+
+    if warm_start and Path(submission_path).exists():
+        already_processed = pd.read_csv(submission_path, sep='\t')['frame'].aslist()
+        already_processed = {Path(p).stem for p in already_processed}
+        imlist = [p for p in imlist if Path(p).stem not in already_processed]
+
     it = iterate_imgs(frames_path, imlist)
     it = iterate_profiler(it, 'load img', 100)
     it = iterate_async(it)
@@ -424,6 +430,7 @@ if __name__ == '__main__':
     parser.add_argument('--seq-name', help='Name of the sequence where videos come from', required=True)
     parser.add_argument('--submission-path', help='Where to put the TSV with submission', required=True)
     parser.add_argument('--debug', help='Whether to produce debugging output', action='store_true')
+    parser.add_argument('--no-warm-start', help='Whether to disable warm start', action='store_false')
     args = parser.parse_args()
     main(
         frames_path=args.frames_path,
@@ -434,4 +441,5 @@ if __name__ == '__main__':
         num_shards=args.num_shards,
         shard=args.shard,
         debug=args.debug,
+        warm_start=not args.no_warm_start,
     )
