@@ -15,7 +15,7 @@ class SignClassifier(object):
     def __init__(self,ch_path='class_ckpts/init/6_ckpt.pth',cl_path='id2class.pkl',pool_size=4):
         with open(CLASSES_REMAPPING_FILE) as f:
             self.classes = json.load(f)
-        self.class_names = [elem[0] for elem in sorted(self.classes.iteritems(), key=lambda x: x[1])]
+        self.class_names = [elem[0] for elem in sorted(self.classes.items(), key=lambda x: x[1])]
 
         self.transform = get_preprocessing(input_shape=SignClassifier.input_shape)
         self.model = SignModel(n_classes=len(self.classes)).half().to('cuda').eval()
