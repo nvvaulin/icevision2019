@@ -377,7 +377,7 @@ def main(frames_path, log_path, video_path, seq_name, submission_path, num_shard
     it = iterate_profiler(it, 'load img', 100)
     it = iterate_async(it)
     it = iterate_profiler(iterate_detector(it, stride=5), 'detector', 100)
-    it = iterate_profiler(iterate_threshold(it, 0.5), 'det_after_threshold', 100)
+    it = iterate_profiler(iterate_threshold(it, 0.4), 'det_after_threshold', 100)
     it = iterate_classifier_by_img(it)
     it = iterate_profiler(it, 'classify', 100)
     it = iterate_async(it)
