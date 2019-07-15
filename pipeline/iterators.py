@@ -187,7 +187,7 @@ def iterate_remove_internal_box(it,thresh=0.9):
         iom = IoMin(bboxes[:,:4],bboxes[:,:4])
         iom -= np.eye(len(bboxes))
         for i in range(len(bboxes)):
-            if (iom[i] > thresh).sum() == 0 and bboxes[:,6][(iom[i] > thesh)].max() > bboxes[i,6]:
+            if ((iom[i] > thresh).sum() > 0) and (bboxes[:,6][(iom[i] > thresh)].max() > bboxes[i,6]):
                 bboxes[i,6] = 0
         yield imname,im,bboxes
 
