@@ -293,7 +293,7 @@ def draw_results(img, bboxes):
     boxes: bbox,dscore,class,cscore,track,tscore
     '''
     img = np.array(img)[:, :, ::-1].copy()
-    with open(CLASSES_REMAPPING_FILE, 'r') as fp:
+    with open(CLASSES_REMAPPING_FILE, 'rb') as fp:
         id2cl = pickle.load(fp)
     for box in bboxes:
         x1, y1, x2, y2 = tuple(box[:4].astype(np.int32))
@@ -337,7 +337,7 @@ def iterate_video(box_iterator, out_path, vsize=(1024, 1024)):
 
 
 def iterate_submission(it, seq_name, submission_path):
-    with open(CLASSES_REMAPPING_FILE, 'r') as fp:
+    with open(CLASSES_REMAPPING_FILE, 'rb') as fp:
         id2cls = pickle.load(fp)
     with open(submission_path, 'w') as fp:
         writer = csv.writer(fp, delimiter='\t')
