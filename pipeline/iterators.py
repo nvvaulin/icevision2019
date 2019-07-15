@@ -1,15 +1,15 @@
 import argparse
+import csv
 import itertools
+import json
+import logging
 import multiprocessing.pool
 import os
-import pickle
 import sys
-import logging
 import time
 from contextlib import contextmanager
 from multiprocessing.dummy import Pool
 from pathlib import Path
-import csv
 
 import cv2
 import imageio
@@ -17,8 +17,8 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 
-from SiamMask import SiamMultiTracker,IoMin
-from classification import SignClassifier
+from SiamMask import SiamMultiTracker, IoMin
+from classification import SignClassifier, CLASSES_REMAPPING_FILE
 
 sys.path.append('../retina')
 
@@ -180,16 +180,17 @@ def iterate_classifier(bbox_iterator, batch_size=128):
     it = iterate_img(it)
     for i in it:
         yield i
-        
-        
-def iterate_remove_internal_box(it,thresh=0.9):
-    for imname,im,bboxes in it:
-        iom = IoMin(bboxes[:,:4],bboxes[:,:4])
+
+
+def iterate_remove_internal_box(it, thresh=0.9):
+    for imname, im, bboxes in it:
+        iom = IoMin(bboxes[:, :4], bboxes[:, :4])
         iom -= np.eye(len(bboxes))
         for i in range(len(bboxes)):
-            if ((iom[i] > thresh).sum() > 0) and (bboxes[:,6][(iom[i] > thresh)].max() > bboxes[i,6]):
-                bboxes[i,6] = 0
-        yield imname,im,bboxes
+            if ((iom[i] > thresh).sum() > 0) and (bboxes[:, 6][(iom[i] > thresh)].max() > bboxes[i, 6]):
+                bboxes[i, 6] = 0
+        yield imname, im, bboxes
+
 
 def iterate_from_log(root, log_path):
     '''
@@ -207,7 +208,7 @@ def iterate_from_log(root, log_path):
         imname = all_images[int(imname.split('.')[0])]
         img = cv2.imread(str(imname))
         print(img.shape)
-#         img = cv2.cvtColor(img, cv2.COLOR_BAYER_BG2BGR)
+        #         img = cv2.cvtColor(img, cv2.COLOR_BAYER_BG2BGR)
         img = Image.fromarray(img)
         yield imname, img, bbox[cols].values.astype(np.float32)
 
@@ -290,8 +291,8 @@ def draw_results(img, bboxes):
     boxes: bbox,dscore,class,cscore,track,tscore
     '''
     img = np.array(img)[:, :, ::-1].copy()
-    with open('classification/id2class.pkl', 'rb') as fp:
-        id2cl = pickle.load(fp)
+    with open(CLASSES_REMAPPING_FILE, 'r') as fp:
+        id2cl = json.load(fp)
     for box in bboxes:
         x1, y1, x2, y2 = tuple(box[:4].astype(np.int32))
         color = [0, 0, 255]
@@ -334,8 +335,8 @@ def iterate_video(box_iterator, out_path, vsize=(1024, 1024)):
 
 
 def iterate_submission(it, seq_name, submission_path):
-    with open('classification/id2class.pkl', 'rb') as fp:
-        id2cls = pickle.load(fp)
+    with open(CLASSES_REMAPPING_FILE, 'r') as fp:
+        id2cls = json.load(fp)
     with open(submission_path, 'w') as fp:
         writer = csv.writer(fp, delimiter='\t')
         writer.writerow(['frame', 'xtl', 'ytl', 'xbr', 'ybr', 'class', 'temporary', 'data'])
