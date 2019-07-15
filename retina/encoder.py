@@ -1,6 +1,6 @@
 import torch
 from math import sqrt
-from retina_utils import box_iou, box_nms, change_box_order, change_box_order_batch, meshgrid
+from utils import box_iou, box_nms, change_box_order, change_box_order_batch, meshgrid
 from torch.autograd import Variable
 import numpy as np
 
@@ -84,8 +84,8 @@ class DataEncoder:
         return score
 
     def decode(self, loc_preds, cls_preds, input_size, device='cuda', shifts=0, scales=1):
-        CLS_THRESH = 0.3
-        NMS_THRESH = 0.3
+        CLS_THRESH = 0.4
+        NMS_THRESH = 0.2
 
         loc_preds = loc_preds.float()
         cls_preds = cls_preds.float()
@@ -122,20 +122,25 @@ class DataEncoder:
         boxes = (boxes / scales[:, None, None] + shifts[:, None])
 #         print(boxes[1, 1244, :])
 #         print(boxes)
-        # cls_preds=F.softmax(cls_preds,-1)
-        cls_preds = F.sigmoid(cls_preds)
+        # print(cls_preds.shape)
+        cls_preds=F.softmax(cls_preds)
+        # cls_preds = F.sigmoid(cls_preds)[:, 1:]
+        # cls_preds = F.sigmoid(cls_preds)
         # print((cls_preds>0.05).sum())
         # print('cls_preds', cls_preds.shape)
-        # score, labels = cls_preds.max(-1)
-        score = cls_preds.squeeze()
+        score, labels = cls_preds.max(-1)
+        # score = cls_preds.squeeze()
         # print(score.shape)
-        labels = torch.ones(score.shape)
+        # labels = torch.ones(score.shape)
 #         score, labels = cls_preds.max(-1)
         # print('score', score.shape, 'labels', labels.shape)
-#         labels = labels + 1
-        # ids =  (labels > 0) & (score>CLS_THRESH)
-        ids =  (score>CLS_THRESH)
+        # labels = labels + 1
+        # print(cls_preds[:, 1:].max())
+
+        ids =  (labels > 0) & (score>CLS_THRESH)
+        # ids =  (score>CLS_THRESH)
         ids = ids.nonzero()
+        # print(len(ids))
         if ids.shape[0]==0:
             return None, None, None
 #         print(boxes.shape)

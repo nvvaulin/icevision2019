@@ -20,11 +20,11 @@ val_transform = Compose([
 def draw_prediction(img, bboxes, scores, labels):
     img = np.array(img)
     import cv2
-    cv2.line(img, (0, 800), (2448, 800), (0, 0, 255), 2)
-    cv2.line(img, (0, 1056), (2448, 1056), (0, 0, 255), 2)
-
-    cv2.line(img, (0, 600), (2448, 600), (0, 255, 255), 2)
-    cv2.line(img, (0, 1112), (2448, 1112), (0, 255, 255), 2)
+    # cv2.line(img, (0, 800), (2448, 800), (0, 0, 255), 2)
+    # cv2.line(img, (0, 1056), (2448, 1056), (0, 0, 255), 2)
+    #
+    # cv2.line(img, (0, 600), (2448, 600), (0, 255, 255), 2)
+    # cv2.line(img, (0, 1112), (2448, 1112), (0, 255, 255), 2)
 
     for b, l, s in zip(bboxes, labels, scores):
         cv2.rectangle(img, (int(b[0]), int(b[1])), (int(b[2]), int(b[3])), (0, 0, 255), 3)
@@ -42,13 +42,13 @@ def get_crops(img, x_from, y_from, x_to, y_to, size, step, scale):
 
 
 def crop(img):
-    small_crops = get_crops(img, -128, 800, 2400, 900, 256, 128, 2)
-    middle_crops = get_crops(img, -256, 600, 2200, 700, 512, 256, 1)
-    big_crops = get_crops(img, -256, -256, 2000, 1000, 1024, 512, 0.5)
-
-    return zip(*chain(small_crops, middle_crops, big_crops))
-    # return zip(*chain(small_crops, middle_crops))
-    # return zip(*chain(middle_crops, big_crops))
+    small_crops = get_crops(img, -128, 800, 2400, 900, 256, 256, 2)
+    middle_crops = get_crops(img, -256, 600-256*2, 2200, 700, 512, 256, 1)
+#     big_crops = get_crops(img, -256, -256, 2000, 1000, 1024, 512, 0.5)
+#     print(list(middle_crops))
+#     return zip(*chain(middle_crops))
+#     return zip(*chain(small_crops, middle_crops, big_crops))
+    return zip(*chain(small_crops, middle_crops))
 
 
 def nms(dets, scores, thresh):
@@ -102,7 +102,7 @@ def crop_prediction(crop, net):
                                                  shifts=shifts, scales=scales)
     if boxes is None:
         return None, None, None
-    keep = nms(boxes, scores.flatten(), thresh=0.3)
+    keep = nms(boxes, scores.flatten(), thresh=0.2)
     boxes, labels, scores = boxes[keep], labels[keep], scores[keep]
 
     return boxes, labels, scores
@@ -151,7 +151,7 @@ class RetinaDetector:
     def __init__(self, device='cuda', verbose=False):
         self.verbose = verbose
         self.net = RetinaNet(backbone=cfg.backbone, num_classes=1, pretrained=False)
-        checkpoint = torch.load(os.path.join('ckpts', 'efnet4', '29_ckpt.pth'), map_location=device)
+        checkpoint = torch.load(os.path.join('ckpts', 'retina_fp16_2e4', '12_ckpt.pth'), map_location=device)
         errors = self.net.load_state_dict(checkpoint['net'])
         logging.warning('Errors from loading Retina model: {}'.format(errors))
         self.net = self.net.half().eval().to(device)
