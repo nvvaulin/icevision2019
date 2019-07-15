@@ -1,12 +1,12 @@
 import torch
 from torch import nn
 from torch.optim import SGD
-from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 import pickle
 from apex import amp
 from glob import glob
 from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
+from dataset import FuckingDataset, N_CLASSES
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from tqdm import tqdm
 import sys
@@ -23,26 +23,28 @@ from losses import LabelSmoothingLoss
 
 def parse_args():
     parser = ArgumentParser('sign cls trainig')
-    parser.add_argument('--experiment', type=str)
+    parser.add_argument('--train-data', dest="train_data", required=True)
+    parser.add_argument('--val-data', dest="val_data", required=True)
+    parser.add_argument('--model', dest="path_to_models", required=True)
     parser.add_argument('--init_lr', default=0.01, type=float)
     parser.add_argument('--n_cycles', default=3, type=int)
     parser.add_argument('--batch_size', default=128, type=int)
-    parser.add_argument('--amp', default='O2', type=str)
+    parser.add_argument('--amp', default='O1', type=str)
     parser.add_argument('--n_workers', default=10, type=int)
-    parser.add_argument('--train_folder', default='classifications_data/train', type=str)
-    parser.add_argument('--val_folder', default='classification_data/val', type=str)
-    parser.add_argument('--label_smoothing', default=0, type=float)
     return parser.parse_args()
 
 
 def train_epoch(model, criterion, optim, lr_scheduler, loader, meta):
     model.train()
     tik = time()
-    for batch_idx, (x, y) in enumerate(loader):
-        x, y = x.to('cuda'), y.type(torch.LongTensor).to('cuda')
+    for batch_idx, data in enumerate(loader):
+        x = data['image']
+        y = data['classes']
+        x, y = x.to('cuda'), y.to('cuda')
 
         optim.zero_grad()
         y_hat = model(x)
+        probs = torch.functional.F.sigmoid(y_hat)
         loss = criterion(y_hat, y)
 
         with amp.scale_loss(loss, optim) as scaled_loss:
@@ -51,7 +53,10 @@ def train_epoch(model, criterion, optim, lr_scheduler, loader, meta):
         optim.step()
         lr_scheduler.step()
 
-        accuracy = (t2np(y_hat.argmax(-1).flatten()) == t2np(y.flatten())).mean()
+        prediction = probs.flatten() > 0.5
+        gt = y.flatten() > 0.5
+
+        accuracy = (t2np(prediction) == t2np(gt)).mean()
         meta['iteration'].append(meta['iteration'][-1]+1)
         meta['lr'].append(lr_scheduler.get_lr()[0])
         meta['train']['loss'].append(t2np(loss).mean())
@@ -69,16 +74,21 @@ def val(model, criterion, loader, meta, amp):
     model.eval()
     accuracy = []
     mean_loss = 0
-    for batch_idx, (x, y) in enumerate(loader):
+    for batch_idx, data in enumerate(loader):
+        x = data['image']
+        y = data['classes']
         x = x.to('cuda')
         if amp != '01':
             x = x.half()
-        y = y.type(torch.LongTensor).to('cuda')
+        y = y.to('cuda')
 
         y_hat = model(x)
+        probs = torch.sigmoid(y_hat)
         loss = criterion(y_hat, y)
 
-        accuracy.extend(t2np(y_hat.argmax(-1).flatten()) == t2np(y.flatten()))
+        prediction = probs.flatten() > 0.5
+        gt = y.flatten() > 0.5
+        accuracy.extend(t2np(prediction) == t2np(gt))
         mean_loss += t2np(loss).mean()
 
     accuracy = np.mean(accuracy)
@@ -95,14 +105,14 @@ if __name__ == '__main__':
     args = parse_args()
 
     train_transform = get_preprocessing(train=True)
-    trainset = ImageFolder(args.train_folder, transform=train_transform)
+    trainset = FuckingDataset(args.train_data, transforms=train_transform)
     trainloader = DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=args.n_workers)
 
     val_transform = get_preprocessing(train=False)
-    valset = ImageFolder(args.val_folder, transform=val_transform)
+    valset = FuckingDataset(args.val_data, transforms=val_transform)
     valloader = DataLoader(valset, batch_size=args.batch_size, shuffle=False, num_workers=args.n_workers)
 
-    model = SignModel(n_classes=len(trainset.classes)).to('cuda')
+    model = SignModel(n_classes=N_CLASSES).to('cuda')
     optim = SGD(params=model.parameters(), lr=args.init_lr, momentum=0.9, nesterov=True)
     lr_scheduler = CosineAnnealingWarmRestarts(optim, T_0=len(trainloader), T_mult=2)
 
@@ -112,10 +122,7 @@ if __name__ == '__main__':
         keep_batchnorm_fp32 = None
     model, optim = amp.initialize(model, optim, opt_level=args.amp, keep_batchnorm_fp32=keep_batchnorm_fp32, verbosity=1)
 
-    if args.label_smoothing == 0:
-        criterion = nn.modules.loss.CrossEntropyLoss(reduction='mean')
-    else:
-        criterion = LabelSmoothingLoss(args.label_smoothing, len(valset.classes))
+    criterion = nn.modules.loss.BCEWithLogitsLoss(reduction='mean')
 
     n_epochs = sum(2**i for i in range(args.n_cycles))
 
@@ -144,7 +151,7 @@ if __name__ == '__main__':
             best_acc = meta['val']['accuracy'][-1]
             state = model.state_dict(),
 
-            ckpt_path = os.path.join('class_ckpts', args.experiment)
+            ckpt_path = args.path_to_models
             if not os.path.isdir(ckpt_path):
                 os.makedirs(ckpt_path)
             torch.save(state, os.path.join(ckpt_path, str(epoch)+'_ckpt.pth'))
