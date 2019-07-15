@@ -150,7 +150,7 @@ def hires_prediction(img, net, verbose=True):
 class RetinaDetector:
     def __init__(self, device='cuda', verbose=False):
         self.verbose = verbose
-        self.net = RetinaNet(backbone=cfg.backbone, num_classes=1, pretrained=False)
+        self.net = RetinaNet(backbone=cfg.backbone, num_classes=2, pretrained=False)
         checkpoint = torch.load(os.path.join('ckpts', 'retina_fp16_2e4', '12_ckpt.pth'), map_location=device)
         errors = self.net.load_state_dict(checkpoint['net'])
         logging.warning('Errors from loading Retina model: {}'.format(errors))
