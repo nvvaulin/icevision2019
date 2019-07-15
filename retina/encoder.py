@@ -1,6 +1,6 @@
 import torch
 from math import sqrt
-from utils import box_iou, box_nms, change_box_order, change_box_order_batch, meshgrid
+from retina_utils import box_iou, box_nms, change_box_order, change_box_order_batch, meshgrid
 from torch.autograd import Variable
 import numpy as np
 
