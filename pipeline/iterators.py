@@ -1,10 +1,10 @@
 import argparse
 import csv
 import itertools
-import json
 import logging
 import multiprocessing.pool
 import os
+import pickle
 import sys
 import time
 from contextlib import contextmanager
@@ -18,7 +18,9 @@ import pandas as pd
 from PIL import Image
 
 from SiamMask import SiamMultiTracker, IoMin
-from classification import SignClassifier, CLASSES_REMAPPING_FILE
+from classification import SignClassifier
+
+CLASSES_REMAPPING_FILE = 'classification/id2class.pkl'
 
 sys.path.append('../retina')
 
@@ -292,7 +294,7 @@ def draw_results(img, bboxes):
     '''
     img = np.array(img)[:, :, ::-1].copy()
     with open(CLASSES_REMAPPING_FILE, 'r') as fp:
-        id2cl = json.load(fp)
+        id2cl = pickle.load(fp)
     for box in bboxes:
         x1, y1, x2, y2 = tuple(box[:4].astype(np.int32))
         color = [0, 0, 255]
@@ -336,7 +338,7 @@ def iterate_video(box_iterator, out_path, vsize=(1024, 1024)):
 
 def iterate_submission(it, seq_name, submission_path):
     with open(CLASSES_REMAPPING_FILE, 'r') as fp:
-        id2cls = json.load(fp)
+        id2cls = pickle.load(fp)
     with open(submission_path, 'w') as fp:
         writer = csv.writer(fp, delimiter='\t')
         writer.writerow(['frame', 'xtl', 'ytl', 'xbr', 'ybr', 'class', 'temporary', 'data'])
