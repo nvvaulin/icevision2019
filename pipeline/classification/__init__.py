@@ -8,7 +8,7 @@ from multiprocessing.dummy import Pool
 import numpy as np
 import json
 
-CLASSES_REMAPPING_FILE = os.path.join(os.path.dirname(__file__), 'remapping.json')
+CLASSES_REMAPPING_FILE = os.path.join(os.path.dirname(__file__), '../../classification/remapping.json')
 
 class SignClassifier(object):
     input_shape = (64,64)
