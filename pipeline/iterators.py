@@ -16,6 +16,7 @@ import imageio
 import numpy as np
 import pandas as pd
 from PIL import Image
+from tqdm.auto import tqdm
 
 from SiamMask import SiamMultiTracker, IoMin
 from classification import SignClassifier
@@ -396,6 +397,7 @@ def main(frames_path, log_path, video_path, seq_name, submission_path, num_shard
         it = iterate_video(it, video_path)
     it = iterate_submission(it, seq_name, submission_path)
     it = iterate_profiler(it, 'pipeline', 100)
+    it = tqdm(it, total=len(imlist))
     for i, (p, im, bboxes) in enumerate(it):
         pass
 
