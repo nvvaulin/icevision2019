@@ -21,11 +21,13 @@ from tqdm.auto import tqdm
 from SiamMask import SiamMultiTracker, IoMin
 from classification import SignClassifier
 
-CLASSES_REMAPPING_FILE = 'classification/id2class.pkl'
-
 sys.path.append('../retina')
 
 from black_box import RetinaDetector
+
+CLASSES_REMAPPING_FILE = 'classification/id2class.pkl'
+with open(CLASSES_REMAPPING_FILE, 'rb') as fp:
+    id2cl = pickle.load(fp)
 
 
 ########################geretal iter tools#################################
@@ -289,13 +291,19 @@ def iterate_detector(img_iterator, stride=5, **kwargs):
             yield imname, img, np.zeros((0, 5), dtype=np.float32)
 
 
+def iterate_filter_bad_signs(it):
+    good_signs = {'4.3', '5.5', '1.8', '3.4', '5.16', '2.2', '5.3', '3.10', '6.6', '5.4', '1.12', '8.13'}
+    for imname, img, bboxes in it:
+        good_boxes = [(id2cl[int(cls_id)] in good_signs) for cls_id in bboxes[:, 5]]
+        yield imname, img, bboxes[good_boxes, :]
+
+
 def draw_results(img, bboxes):
     '''
     boxes: bbox,dscore,class,cscore,track,tscore
     '''
     img = np.array(img)[:, :, ::-1].copy()
-    with open(CLASSES_REMAPPING_FILE, 'rb') as fp:
-        id2cl = pickle.load(fp)
+
     for box in bboxes:
         x1, y1, x2, y2 = tuple(box[:4].astype(np.int32))
         color = [0, 0, 255]
@@ -338,8 +346,6 @@ def iterate_video(box_iterator, out_path, vsize=(1024, 1024)):
 
 
 def iterate_submission(it, seq_name, submission_path):
-    with open(CLASSES_REMAPPING_FILE, 'rb') as fp:
-        id2cls = pickle.load(fp)
     with open(submission_path, 'w') as fp:
         writer = csv.writer(fp, delimiter='\t')
         writer.writerow(['frame', 'xtl', 'ytl', 'xbr', 'ybr', 'class', 'temporary', 'data'])
@@ -351,7 +357,7 @@ def iterate_submission(it, seq_name, submission_path):
                 cls, cls_score, trk, trk_score = [None] * 4
 
                 if len(box) >= 7:
-                    cls = id2cls[int(box[5])]
+                    cls = id2cl[int(box[5])]
                     if cls == 'other':
                         continue
                     cls_score = box[6]
@@ -381,7 +387,7 @@ def main(frames_path, log_path, video_path, seq_name, submission_path, num_shard
     it = iterate_profiler(it, 'load img', 100)
     it = iterate_async(it)
     it = iterate_profiler(iterate_detector(it, stride=5), 'detector', 100)
-    it = iterate_profiler(iterate_threshold(it, 0.4), 'det_after_threshold', 100)
+    it = iterate_profiler(iterate_threshold(it, 0.7), 'det_after_threshold', 100)
     it = iterate_classifier_by_img(it)
     it = iterate_profiler(it, 'classify', 100)
     it = iterate_remove_internal_box(it)
@@ -391,6 +397,7 @@ def main(frames_path, log_path, video_path, seq_name, submission_path, num_shard
     it = iterate_profiler(it, 'classify_t', 100)
     it = iterate_remove_internal_box(it)
     it = iterate_remove_tracks(it, mtracker)
+    it = iterate_filter_bad_signs(it)
     if debug:
         it = iterate_log(it, 'log.csv')
         it = iterate_async(it)
