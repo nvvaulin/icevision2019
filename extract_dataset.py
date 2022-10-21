@@ -14,7 +14,29 @@ def main(run_dir: Path):
         src = run_dir / tar_path.stem
         src.mkdir(exist_ok=True)
         with tarfile.open(str(tar_path)) as tar:
-            tar.extractall(str(src))
+            
+            import os
+            
+            def is_within_directory(directory, target):
+                
+                abs_directory = os.path.abspath(directory)
+                abs_target = os.path.abspath(target)
+            
+                prefix = os.path.commonprefix([abs_directory, abs_target])
+                
+                return prefix == abs_directory
+            
+            def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+            
+                for member in tar.getmembers():
+                    member_path = os.path.join(path, member.name)
+                    if not is_within_directory(path, member_path):
+                        raise Exception("Attempted Path Traversal in Tar File")
+            
+                tar.extractall(path, members, numeric_owner=numeric_owner) 
+                
+            
+            safe_extract(tar, str(src))
         dst = run_dir / (tar_path.stem + '_pngs')
         convert_flifs(src, dst, use_tqdm=True)
 
